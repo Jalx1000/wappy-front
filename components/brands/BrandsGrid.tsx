@@ -1,0 +1,276 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import { Icon } from "@/components/ui/Icon";
+import { Badge } from "@/components/ui/Badge";
+import { ChannelDot } from "@/components/ui/ChannelDot";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Segmented } from "@/components/ui/Segmented";
+import { useToast } from "@/components/ui/Toast";
+import { useUIStore } from "@/store/ui";
+import { useBrands } from "@/lib/hooks";
+import { BRAND_DELTAS } from "@/lib/mocks/data";
+import type { Brand } from "@/store/ui";
+
+const PLANS = ["360°", "Social + Ads", "Social"];
+
+const container = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.05 } },
+};
+const item = {
+  hidden: { opacity: 0, y: 10 },
+  show:   { opacity: 1, y: 0, transition: { duration: 0.25 } },
+};
+
+export function BrandsGrid() {
+  const { activeBrand, setActiveBrand } = useUIStore();
+  const [search, setSearch] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+  const toast = useToast();
+  const router = useRouter();
+  const { data: brands = [] } = useBrands();
+
+  const shown = brands.filter((b) => {
+    const q = search.trim().toLowerCase();
+    const matchQ = !q || (b.name + " " + b.industry).toLowerCase().includes(q);
+    const matchP = planFilter === "all" || b.plan === planFilter;
+    return matchQ && matchP;
+  });
+
+  const handleOpen = (b: Brand) => {
+    setActiveBrand(b);
+    router.push("/app/connections");
+  };
+
+  return (
+    <div className="p-7 overflow-y-auto h-full">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6 flex-wrap">
+        <div>
+          <h1
+            style={{
+              fontFamily: "var(--font-display)",
+              fontWeight: 600,
+              fontSize: 22,
+              letterSpacing: "-0.02em",
+              color: "var(--color-text-primary)",
+            }}
+          >
+            Marcas
+          </h1>
+          <p className="text-[14px] mt-[5px]" style={{ color: "var(--color-text-secondary)" }}>
+            {brands.length} marcas activas en tu cartera
+          </p>
+        </div>
+        <div className="ml-auto flex items-center gap-2 flex-wrap">
+          {/* Search */}
+          <div
+            className="flex items-center gap-2 h-[36px] px-3 rounded-[10px] border w-[220px]"
+            style={{
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <Icon name="search" size={15} style={{ color: "var(--color-text-tertiary)" }} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar marca…"
+              className="flex-1 border-none outline-none bg-transparent text-[13px]"
+              style={{ fontFamily: "var(--font-ui)", color: "var(--color-text-primary)" }}
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="border-none bg-transparent cursor-pointer flex p-0"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
+                <Icon name="x" size={14} />
+              </button>
+            )}
+          </div>
+          <Segmented
+            options={[
+              { v: "all", l: "Todas" },
+              ...PLANS.map((p) => ({ v: p, l: p })),
+            ]}
+            value={planFilter}
+            onChange={setPlanFilter}
+            sm
+          />
+          <button className="fobo-btn fobo-btn-primary fobo-btn-sm flex items-center gap-1">
+            <Icon name="plus" size={16} /> Añadir marca
+          </button>
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
+        <EmptyState
+          icon="brands"
+          title={search ? "Sin resultados" : "Aún no hay marcas"}
+          body={
+            search
+              ? `Ninguna marca coincide con "${search}". Prueba con otro nombre o industria.`
+              : "Crea tu primera marca para empezar a conectar sus cuentas."
+          }
+          action={
+            search ? (
+              <button
+                className="fobo-btn fobo-btn-secondary fobo-btn-sm"
+                onClick={() => { setSearch(""); setPlanFilter("all"); }}
+              >
+                Limpiar filtros
+              </button>
+            ) : (
+              <button className="fobo-btn fobo-btn-primary fobo-btn-sm flex items-center gap-1">
+                <Icon name="plus" size={16} /> Añadir marca
+              </button>
+            )
+          }
+        />
+      ) : (
+        <motion.div
+          variants={container}
+          initial="hidden"
+          animate="show"
+          className="grid gap-4"
+          style={{ gridTemplateColumns: "repeat(2, 1fr)" }}
+        >
+          {shown.map((b) => {
+            const isActive = b.id === activeBrand?.id;
+            const delta = BRAND_DELTAS[b.id] ?? 0;
+            return (
+              <motion.div key={b.id} variants={item}>
+                <div
+                  className="fobo-card p-5 cursor-pointer transition-all duration-150"
+                  style={{
+                    border: isActive ? "1.5px solid var(--color-primary)" : "1px solid var(--color-border)",
+                  }}
+                  onClick={() => handleOpen(b)}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.transform = "translateY(-1px)";
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = "var(--shadow-2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLDivElement).style.transform = "";
+                    (e.currentTarget as HTMLDivElement).style.boxShadow = "";
+                  }}
+                >
+                  {/* Top row */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <span
+                      className="flex items-center justify-center text-white font-bold text-[17px] flex-shrink-0"
+                      style={{ width: 48, height: 48, borderRadius: 12, background: b.tint }}
+                    >
+                      {b.short}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="text-[16px] font-semibold"
+                          style={{ color: "var(--color-text-primary)" }}
+                        >
+                          {b.name}
+                        </span>
+                        {isActive && <Badge variant="primary">Activa</Badge>}
+                      </div>
+                      <div className="text-[12.5px]" style={{ color: "var(--color-text-tertiary)" }}>
+                        {b.industry} · plan {b.plan} · {b.team} en el equipo
+                      </div>
+                    </div>
+                    {/* Channel pills */}
+                    <div className="flex items-center flex-shrink-0">
+                      {b.channels.slice(0, 4).map((ch, i) => (
+                        <span key={ch} style={{ marginLeft: i ? -7 : 0, zIndex: 4 - i }}>
+                          <ChannelDot channel={ch} size={26} radius={9999} />
+                        </span>
+                      ))}
+                      {b.channels.length > 4 && (
+                        <span
+                          className="flex items-center justify-center text-[10px] font-bold"
+                          style={{
+                            width: 26, height: 26, borderRadius: 9999,
+                            background: "var(--color-background)",
+                            color: "var(--color-text-secondary)",
+                            border: "2px solid var(--color-surface)",
+                            marginLeft: -7,
+                          }}
+                        >
+                          +{b.channels.length - 4}
+                        </span>
+                      )}
+                    </div>
+                    {/* Row menu stub */}
+                    <button
+                      className="flex items-center justify-center w-8 h-8 rounded-[8px] border-none cursor-pointer flex-shrink-0"
+                      style={{ background: "transparent", color: "var(--color-text-tertiary)" }}
+                      onClick={(e) => e.stopPropagation()}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-background)")}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+                    >
+                      <Icon name="dots" size={17} />
+                    </button>
+                  </div>
+
+                  {/* Metrics band */}
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+                    {[
+                      { l: "Seguidores", v: b.followers },
+                      { l: "Alcance", v: b.reach },
+                      { l: "Engagement", v: b.eng },
+                      { l: "Inversión", v: b.spend },
+                    ].map(({ l, v }) => (
+                      <div
+                        key={l}
+                        className="rounded-[10px] px-3 py-[10px]"
+                        style={{ background: "var(--color-background)" }}
+                      >
+                        <div
+                          className="tnum font-bold leading-none"
+                          style={{
+                            fontFamily: "var(--font-display)",
+                            fontSize: 16,
+                            letterSpacing: "-0.02em",
+                            color: "var(--color-text-primary)",
+                          }}
+                        >
+                          {v}
+                        </div>
+                        <div className="text-[11px] mt-[4px]" style={{ color: "var(--color-text-tertiary)" }}>
+                          {l}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Footer */}
+                  <div
+                    className="flex items-center justify-between mt-4 pt-3"
+                    style={{ borderTop: "1px solid var(--color-border)" }}
+                  >
+                    <div
+                      className="inline-flex items-center gap-[5px] text-[12px] font-semibold"
+                      style={{ color: "var(--color-success)" }}
+                    >
+                      <Icon name="arrowUp" size={12} color="var(--color-success)" />
+                      {delta}% vs. mes anterior
+                    </div>
+                    <button
+                      className="fobo-btn fobo-btn-ghost fobo-btn-sm gap-1"
+                      onClick={(e) => { e.stopPropagation(); handleOpen(b); }}
+                    >
+                      <Icon name="plug" size={14} /> Conexiones
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      )}
+    </div>
+  );
+}
