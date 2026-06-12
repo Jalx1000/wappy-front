@@ -9,6 +9,7 @@ import { BarChart } from "@/components/ui/BarChart";
 import { ChannelDot } from "@/components/ui/ChannelDot";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 import { useUIStore } from "@/store/ui";
 import { useAdsAnalytics, useBrands } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK, CHANNEL_META } from "@/lib/mocks/data";
@@ -71,6 +72,8 @@ export function PaidMedia() {
           <Segmented options={RANGE_OPTS} value={range} onChange={setRange} />
         </div>
       </div>
+
+      <DemoBanner module="Ads (Meta/Google/TikTok)" brandName={brand.name} />
 
       {/* KPIs */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>

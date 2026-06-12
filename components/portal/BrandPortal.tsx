@@ -29,7 +29,7 @@ const TABS = [
 export function BrandPortal({ brand }: { brand: Brand }) {
   const [tab, setTab] = useState("overview");
 
-  const { data: socialData } = useSocialAnalytics(brand.id);
+  const { data: socialData } = useSocialAnalytics(brand.id, undefined, undefined, 30);
   const { data: adsData }    = useAdsAnalytics(brand.id);
   const { data: webData }    = useWebAnalytics(brand.id);
 

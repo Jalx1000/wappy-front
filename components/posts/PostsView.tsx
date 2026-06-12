@@ -22,6 +22,7 @@ import { POST_STATUS_META, POSTS_DATA } from "@/lib/mocks/analyticsData";
 import type { BadgeVariant } from "@/components/ui/Badge";
 import type { PostStatus } from "@/lib/mocks/analyticsData";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 const STATUS_BADGE: Record<PostStatus, BadgeVariant> = {
   published: "success",
@@ -45,7 +46,6 @@ export function PostsView() {
   const brandId = activeBrand?.id ?? BRANDS_FALLBACK[0].id;
   const { data: posts = [], isPending } = usePosts(brandId);
 
-  if (isPending) return <PostsSkeleton />;
   const [sorting, setSorting] = useState<SortingState>([]);
   const [chFilter, setChFilter] = useState("Todos");
   const [stFilter, setStFilter] = useState("Todos");
@@ -146,8 +146,11 @@ export function PostsView() {
     getFilteredRowModel: getFilteredRowModel(),
   });
 
+  if (isPending) return <PostsSkeleton />;
+
   return (
     <div className="p-7 overflow-y-auto h-full">
+      <DemoBanner module="Posts" />
       <div className="flex items-end gap-4 mb-5 flex-wrap">
         <div>
           <h1 style={{ fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>

@@ -13,6 +13,7 @@ import { useUIStore } from "@/store/ui";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import type { Approval, ApprovalStatus } from "@/lib/mocks/analyticsData";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 const STATUS_META: Record<ApprovalStatus, { label: string; variant: "success"|"error"|"warning"|"neutral"|"primary" }> = {
   pending:  { label: "Pendiente",           variant: "warning" },
@@ -156,10 +157,10 @@ export function ApprovalsView() {
   const { activeBrand } = useUIStore();
   const brandId = activeBrand?.id ?? BRANDS_FALLBACK[0].id;
   const { data: items = [], isPending } = useApprovals(brandId);
-
-  if (isPending) return <ApprovalsSkeleton />;
   const updateApproval = useUpdateApproval(brandId);
   const [review, setReview] = useState<Approval | null>(null);
+
+  if (isPending) return <ApprovalsSkeleton />;
 
   const handleApprove = (id: number) => {
     updateApproval.mutate({ id, status: "approved" });
@@ -181,6 +182,7 @@ export function ApprovalsView() {
 
   return (
     <div className="p-7 overflow-y-auto h-full">
+      <DemoBanner module="Aprobaciones" />
       {/* Header */}
       <div className="flex items-end gap-4 mb-6 flex-wrap">
         <div>

@@ -81,7 +81,8 @@ export const CHANNEL_META: Record<string, { label: string; color: string; letter
   youtube:   { label: "YouTube",            color: "#FF0000", letter: "▶",  cat: "social",    scopes: ["Canal", "Videos", "YouTube Analytics"] },
   metaads:   { label: "Meta Ads",           color: "#1877F2", letter: "f",  cat: "ads",       scopes: ["Ad Account", "Campañas", "Insights", "Audiencias"] },
   googleads: { label: "Google Ads",         color: "#4285F4", letter: "▴",  cat: "ads",       scopes: ["Cuenta MCC", "Campañas", "Conversiones"] },
-  tiktokads: { label: "TikTok Ads",         color: "#010101", letter: "♪",  cat: "ads",       scopes: ["Ads Manager", "Campañas", "Reportes", "Píxel"] },
+  tiktokads:  { label: "TikTok Ads",         color: "#010101", letter: "♪",  cat: "ads",       scopes: ["Ads Manager", "Campañas", "Reportes", "Píxel"] },
+  linkedinads:{ label: "LinkedIn Ads",       color: "#0A66C2", letter: "in", cat: "ads",       scopes: ["Ad accounts", "Reporting", "Campañas"] },
   ga4:       { label: "Google Analytics 4", color: "#E8710A", letter: "▲",  cat: "analytics", scopes: ["Propiedad GA4", "Eventos", "Conversiones", "Audiencias"] },
   website:   { label: "Sitio Web",          color: "#0D5CA6", letter: "⊕",  cat: "web",       scopes: ["Tracking script", "Uptime", "Formularios"] },
 };
@@ -95,6 +96,7 @@ export const CHANNEL_CATEGORIES = [
 
 // ── Connection records ────────────────────────────────────────────────────────
 export type ConnRecord = {
+  id?: number;
   ch: string;
   account: string | null;
   status: "connected" | "reauth" | "available";

@@ -12,9 +12,25 @@ import { ChannelDot } from "@/components/ui/ChannelDot";
 import { ImagePlaceholder } from "@/components/ui/ImagePlaceholder";
 import { Icon } from "@/components/ui/Icon";
 import { useUIStore } from "@/store/ui";
-import { useSocialAnalytics, useBrands } from "@/lib/hooks";
+import {
+  useSocialAnalytics,
+  useBrands,
+  useConnections,
+} from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
+
+const CHANNEL_UI_TO_BACKEND: Record<string, string> = {
+  facebook: "facebook_page",
+  instagram: "instagram",
+  tiktok: "tiktok",
+  linkedin: "linkedin",
+  youtube: "youtube",
+  googleads: "google_ads",
+  ga4: "ga4",
+};
+
+const PERIOD_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
 
 const RANGE_OPTS = [{ v: "7d", l: "7 días" }, { v: "30d", l: "30 días" }, { v: "90d", l: "90 días" }];
 
@@ -42,7 +58,26 @@ export function SocialAnalytics() {
   const { activeBrand } = useUIStore();
   const { data: brands = BRANDS_FALLBACK } = useBrands();
   const brand = activeBrand ?? brands[0];
-  const { data, isPending } = useSocialAnalytics(brand?.id);
+
+  const days = PERIOD_DAYS[range] ?? 30;
+
+  // Pick the first "social" connection of the brand for overview + top-posts.
+  const { data: conns = [] } = useConnections(brand?.id);
+  const firstSocial = conns.find(
+    (c) =>
+      c.id !== undefined &&
+      ["instagram", "facebook", "tiktok", "linkedin", "youtube"].includes(c.ch),
+  );
+  const backendChannel = firstSocial
+    ? CHANNEL_UI_TO_BACKEND[firstSocial.ch] ?? firstSocial.ch
+    : undefined;
+
+  const { data, isPending } = useSocialAnalytics(
+    brand?.id,
+    firstSocial?.id,
+    backendChannel,
+    days,
+  );
 
   if (isPending) return <SocialSkeleton />;
 

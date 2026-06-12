@@ -10,6 +10,7 @@ import { CAMP_STATUS_META } from "@/lib/mocks/analyticsData";
 import { useUIStore } from "@/store/ui";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import type { BadgeVariant } from "@/components/ui/Badge";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 export function CampaignsView() {
   const { activeBrand } = useUIStore();
@@ -18,6 +19,7 @@ export function CampaignsView() {
 
   return (
     <div className="p-7 overflow-y-auto h-full">
+      <DemoBanner module="Campañas" />
       <div className="flex items-end gap-4 mb-6 flex-wrap">
         <div>
           <h1 style={{ fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>

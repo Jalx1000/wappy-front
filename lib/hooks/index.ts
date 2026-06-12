@@ -1,5 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { brandsApi } from "@/lib/api/brands";
+import { brandsApi, type CreateBrandDto, type UpdateBrandDto } from "@/lib/api/brands";
+import {
+  authApi,
+  type AuthMe,
+  type UpdateMeDto,
+} from "@/lib/api/auth";
+import {
+  membersApi,
+  type BrandMember,
+  type MemberRole,
+} from "@/lib/api/members";
+import { filesApi } from "@/lib/api/files";
+import { api } from "@/lib/api/client";
+import { useUIStore } from "@/store/ui";
 import { analyticsApi } from "@/lib/api/analytics";
 import { contentApi } from "@/lib/api/content";
 import { inboxApi } from "@/lib/api/inbox";
@@ -86,14 +99,183 @@ export function useBrands() {
   });
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
-export function useDashboard(brandId: string | undefined) {
-  return useQuery<{ kpis: KpiItem[]; alerts: AlertItem[] }>({
-    queryKey: ["dashboard", brandId],
-    queryFn: () =>
-      brandsApi.getDashboard(brandId!) as Promise<{ kpis: KpiItem[]; alerts: AlertItem[] }>,
+export function useCreateBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: CreateBrandDto) => brandsApi.create(dto),
+    onSuccess: async (newBrand) => {
+      await qc.invalidateQueries({ queryKey: ["brands"] });
+      useUIStore.getState().setActiveBrand(newBrand);
+    },
+  });
+}
+
+export function useUpdateBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: UpdateBrandDto }) =>
+      brandsApi.update(id, data),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["brands"] }),
+  });
+}
+
+export function useDeleteBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => brandsApi.remove(id),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["brands"] }),
+  });
+}
+
+// ── Auth (self) ──────────────────────────────────────────────────────────────
+export function useMe() {
+  return useQuery<AuthMe>({
+    queryKey: ["auth", "me"],
+    queryFn: () => authApi.me(),
+  });
+}
+
+export function useUpdateMe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: UpdateMeDto) => authApi.updateMe(dto),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["auth", "me"] }),
+  });
+}
+
+export function useDeleteMe() {
+  return useMutation({
+    mutationFn: () => authApi.deleteMe(),
+  });
+}
+
+// ── Brand members ────────────────────────────────────────────────────────────
+export function useBrandMembers(brandId: string | undefined) {
+  return useQuery<BrandMember[]>({
+    queryKey: ["brand-members", brandId],
+    queryFn: () => membersApi.list(brandId!),
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? { kpis: KPIS, alerts: ALERTS } : undefined,
+  });
+}
+
+export function useAddMember(brandId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: { userId: number; role?: MemberRole }) =>
+      membersApi.add(brandId!, dto),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: ["brand-members", brandId] }),
+  });
+}
+
+export function useRemoveMember(brandId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) => membersApi.remove(brandId!, userId),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: ["brand-members", brandId] }),
+  });
+}
+
+// ── Files (real backend) ─────────────────────────────────────────────────────
+export function useUploadFile() {
+  return useMutation({
+    mutationFn: (file: File) => filesApi.upload(file),
+  });
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+export type DashboardKpisRaw = {
+  followers: number;
+  reach: number;
+  impressions: number;
+  engagement: number;
+  engagement_rate: number;
+  likes: number;
+  shares: number;
+  comments: number;
+};
+
+export type DashboardData = {
+  kpis: KpiItem[];
+  alerts: AlertItem[];
+  raw: DashboardKpisRaw;
+};
+
+function isoDaysAgo(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function fmtNum(n: number) {
+  if (!Number.isFinite(n)) return "0";
+  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "") + "M";
+  if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(Math.round(n));
+}
+
+function formatDashboardKpis(raw: DashboardKpisRaw): KpiItem[] {
+  // engagement_rate viene del backend multiplicado por 100 (e.g. 295.56 → 2.96%).
+  const engRate = typeof raw.engagement_rate === "number" ? raw.engagement_rate / 100 : 0;
+  return [
+    { id: "reach",  label: "Alcance total",     value: fmtNum(raw.reach ?? 0),       delta: 0, spark: [] },
+    { id: "eng",    label: "Engagement",         value: engRate.toFixed(1) + "%",     delta: 0, spark: [] },
+    { id: "fans",   label: "Seguidores",         value: fmtNum(raw.followers ?? 0),   delta: 0, spark: [] },
+    { id: "roas",   label: "Impresiones",        value: fmtNum(raw.impressions ?? 0), delta: 0, spark: [] },
+  ];
+}
+
+export function useDashboard(brandId: string | undefined, days = 30) {
+  return useQuery<DashboardData>({
+    queryKey: ["dashboard", brandId, days],
+    queryFn: async () => {
+      const from = isoDaysAgo(days);
+      const to = isoDaysAgo(0);
+      const summary = await api.get<{
+        kpis: DashboardKpisRaw;
+        topPosts: unknown[];
+      }>(`/analytics/social/summary?from=${from}&to=${to}`);
+      return {
+        kpis: formatDashboardKpis(summary.kpis),
+        alerts: [],
+        raw: summary.kpis,
+      };
+    },
+    enabled: !!brandId,
+    placeholderData: IS_MOCKS
+      ? ({
+          kpis: KPIS,
+          alerts: ALERTS,
+          raw: {
+            followers: 0, reach: 0, impressions: 0,
+            engagement: 0, engagement_rate: 0,
+            likes: 0, shares: 0, comments: 0,
+          },
+        } as DashboardData)
+      : undefined,
+  });
+}
+
+export type DashboardSeriesPoint = { date: string; value: number };
+export type DashboardSeries = Record<string, DashboardSeriesPoint[]>;
+
+export function useDashboardSeries(
+  brandId: string | undefined,
+  connectionId: number | undefined,
+  days = 30,
+) {
+  return useQuery<DashboardSeries>({
+    queryKey: ["dashboard-series", brandId, connectionId, days],
+    queryFn: async () => {
+      const from = isoDaysAgo(days);
+      const to = isoDaysAgo(0);
+      const data = await api.get<{ series: DashboardSeries }>(
+        `/analytics/social/overview?connectionId=${connectionId}&from=${from}&to=${to}`,
+      );
+      return data.series;
+    },
+    enabled: !!brandId && typeof connectionId === "number",
   });
 }
 
@@ -134,14 +316,15 @@ export function useConnectMutation(brandId: string | undefined) {
 export function useDisconnectMutation(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (ch: string) => brandsApi.disconnect(brandId!, ch),
-    onMutate: async (ch) => {
+    mutationFn: ({ id }: { id: number; ch: string }) =>
+      brandsApi.disconnect(id),
+    onMutate: async ({ id, ch }) => {
       await qc.cancelQueries({ queryKey: ["connections", brandId] });
       const prev = qc.getQueryData<ConnRecord[]>(["connections", brandId]);
       qc.setQueryData<ConnRecord[]>(["connections", brandId], (old = []) =>
         old.map((c) =>
-          c.ch === ch
-            ? { ...c, status: "available" as const, health: null, account: null, since: undefined, lastSync: undefined }
+          c.id === id || c.ch === ch
+            ? { ...c, status: "available" as const, health: null, account: null, since: undefined, lastSync: undefined, id: undefined }
             : c
         )
       );
@@ -154,12 +337,143 @@ export function useDisconnectMutation(brandId: string | undefined) {
   });
 }
 
+export function useSyncConnectionMutation(brandId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => brandsApi.syncConnection(id),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["connections", brandId] }),
+  });
+}
+
+export function useUpdateConnectionMutation(brandId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, accessToken }: { id: number; accessToken: string }) =>
+      brandsApi.updateConnection(id, { accessToken }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["connections", brandId] }),
+  });
+}
+
 // ── Analytics — Social ────────────────────────────────────────────────────────
-export function useSocialAnalytics(brandId: string | undefined) {
+const CHANNEL_BACKEND_TO_UI: Record<string, string> = {
+  facebook_page: "facebook",
+  instagram: "instagram",
+  tiktok: "tiktok",
+  linkedin: "linkedin",
+  youtube: "youtube",
+  google_ads: "googleads",
+  ga4: "ga4",
+};
+
+function fmtCompact(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "") + "M";
+  if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+  return String(Math.round(n));
+}
+
+function isoBack(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function fmtShortDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("es-BO", { day: "numeric", month: "short" });
+}
+
+function buildLabels(points: { date: string }[]): string[] {
+  const n = points.length;
+  return points.map((p, i) => {
+    if (i === 0 || i === n - 1 || i % Math.max(1, Math.floor(n / 6)) === 0) {
+      return p.date.slice(5);
+    }
+    return "";
+  });
+}
+
+export function useSocialAnalytics(
+  brandId: string | undefined,
+  connectionId: number | undefined,
+  connectionChannel: string | undefined,
+  days = 30,
+) {
   return useQuery<SocialAnalyticsData>({
-    queryKey: ["analytics", "social", brandId],
-    queryFn: () => analyticsApi.social(brandId!) as Promise<SocialAnalyticsData>,
+    queryKey: ["analytics", "social", brandId, connectionId, days],
     enabled: !!brandId,
+    queryFn: async () => {
+      const from = isoBack(days);
+      const to = isoBack(0);
+
+      // Summary is brand-scoped (no connectionId needed).
+      const summaryP = analyticsApi.socialSummary(from, to);
+
+      // Overview + topPosts require a connectionId. If none, fall back to mocks.
+      const haveConn = typeof connectionId === "number";
+      const overviewP = haveConn
+        ? analyticsApi.socialOverview(connectionId!, from, to)
+        : Promise.resolve(null);
+      const topPostsP = haveConn
+        ? analyticsApi.socialTopPosts(connectionId!, 8)
+        : Promise.resolve(null);
+
+      const [summary, overview, topPosts] = await Promise.all([
+        summaryP,
+        overviewP,
+        topPostsP,
+      ]);
+
+      // KPIs from summary — defensive: backend may return undefined when brand has no connections
+      const k = summary.kpis ?? ({} as Partial<typeof summary.kpis>);
+      const engRate = typeof k.engagement_rate === "number" ? k.engagement_rate / 100 : 0;
+      const kpis: SaKpi[] = [
+        { label: "Alcance", value: fmtCompact(k.reach ?? 0), delta: 0, spark: [] },
+        { label: "Impresiones", value: fmtCompact(k.impressions ?? 0), delta: 0, spark: [] },
+        { label: "Engagement", value: engRate.toFixed(1) + "%", delta: 0, spark: [] },
+        { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: 0, spark: [] },
+      ];
+
+      // Trend from overview.series.reach
+      const reachSeries = overview?.series.reach ?? [];
+      const trend = reachSeries.length
+        ? {
+            reach: reachSeries.map((p) => p.value),
+            labels: buildLabels(reachSeries),
+          }
+        : SA_TREND;
+
+      // Top posts from backend or topPosts response
+      const rawPosts =
+        (topPosts && Array.isArray(topPosts) && topPosts.length ? topPosts : null) ??
+        summary.topPosts ??
+        [];
+      const channelLabel = connectionChannel
+        ? CHANNEL_BACKEND_TO_UI[connectionChannel] ?? connectionChannel
+        : "instagram";
+
+      const mappedPosts = rawPosts.slice(0, 8).map((p) => {
+        const reach = p.metrics?.reach ?? 0;
+        const eng = p.metrics?.engagement ?? 0;
+        const engRate = reach > 0 ? (eng / reach) * 100 : 0;
+        return {
+          ch: channelLabel,
+          caption: p.caption ?? "—",
+          reach: fmtCompact(reach),
+          eng: engRate.toFixed(1) + "%",
+          likes: fmtCompact(p.metrics?.likes ?? 0),
+          date: fmtShortDate(p.publishedAt),
+        };
+      });
+
+      return {
+        kpis,
+        trend,
+        networks: SA_NETWORKS,
+        audience: { age: SA_AUDIENCE_AGE, gender: SA_GENDER, geo: SA_GEO },
+        topPosts: mappedPosts.length ? mappedPosts : TOP_POSTS,
+      } as SocialAnalyticsData;
+    },
     placeholderData: IS_MOCKS
       ? {
           kpis: SA_KPIS,
@@ -172,11 +486,17 @@ export function useSocialAnalytics(brandId: string | undefined) {
   });
 }
 
-// ── Analytics — Ads ───────────────────────────────────────────────────────────
+// ── Analytics — Ads (NO BACKEND — pure mock) ─────────────────────────────────
 export function useAdsAnalytics(brandId: string | undefined) {
   return useQuery<AdsAnalyticsData>({
     queryKey: ["analytics", "ads", brandId],
-    queryFn: () => analyticsApi.ads(brandId!) as Promise<AdsAnalyticsData>,
+    queryFn: async () =>
+      ({
+        kpis: ADS_KPIS,
+        platforms: ADS_PLATFORMS,
+        campaigns: ADS_CAMPAIGNS,
+        spendTrend: ADS_SPEND_TREND,
+      }) as AdsAnalyticsData,
     enabled: !!brandId,
     placeholderData: IS_MOCKS
       ? {
@@ -189,11 +509,19 @@ export function useAdsAnalytics(brandId: string | undefined) {
   });
 }
 
-// ── Analytics — Web / GA4 ─────────────────────────────────────────────────────
+// ── Analytics — Web / GA4 (NO BACKEND — pure mock) ───────────────────────────
 export function useWebAnalytics(brandId: string | undefined) {
   return useQuery<WebAnalyticsData>({
     queryKey: ["analytics", "web", brandId],
-    queryFn: () => analyticsApi.web(brandId!) as Promise<WebAnalyticsData>,
+    queryFn: async () =>
+      ({
+        kpis: WEB_KPIS,
+        sessions: { current: WEB_SESSIONS_THIS, previous: WEB_SESSIONS_PREV, labels: WEB_SESSION_LABELS },
+        sources: WEB_SOURCES,
+        pages: WEB_PAGES,
+        devices: WEB_DEVICES,
+        funnel: WEB_FUNNEL,
+      }) as WebAnalyticsData,
     enabled: !!brandId,
     placeholderData: IS_MOCKS
       ? {
@@ -208,21 +536,25 @@ export function useWebAnalytics(brandId: string | undefined) {
   });
 }
 
+// ── Mock-only modules (no backend yet — UI uses static mocks) ────────────────
+// All hooks below intentionally do NOT call the backend. When backend ships,
+// swap the queryFn / mutationFn to the real call and drop the DemoBanner on
+// the corresponding view. See docs/BACKEND_BACKLOG.md for shapes.
+
 // ── Approvals ─────────────────────────────────────────────────────────────────
 export function useApprovals(brandId: string | undefined) {
   return useQuery<Approval[]>({
     queryKey: ["approvals", brandId],
-    queryFn: () => contentApi.getApprovals(brandId!),
+    queryFn: async () => APPROVALS_DATA,
+    initialData: APPROVALS_DATA,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? APPROVALS_DATA : undefined,
   });
 }
 
 export function useUpdateApproval(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status, note }: { id: number; status: string; note?: string }) =>
-      contentApi.updateApproval(brandId!, id, status, note),
+    mutationFn: async (vars: { id: number; status: string; note?: string }) => vars,
     onMutate: async ({ id, status }) => {
       await qc.cancelQueries({ queryKey: ["approvals", brandId] });
       const prev = qc.getQueryData<Approval[]>(["approvals", brandId]);
@@ -234,7 +566,6 @@ export function useUpdateApproval(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["approvals", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["approvals", brandId] }),
   });
 }
 
@@ -242,11 +573,19 @@ export function useUpdateApproval(brandId: string | undefined) {
 export function useCalendar(brandId: string | undefined, year: number, month: number) {
   return useQuery<CalendarData>({
     queryKey: ["calendar", brandId, year, month],
-    queryFn: () => contentApi.getCalendar(brandId!, year, month) as Promise<CalendarData>,
+    queryFn: async () => ({
+      year,
+      month,
+      posts: CAL_POSTS_RAW as unknown as Record<number, CalPost[]>,
+      statusMeta: POST_STATUS_META,
+    }),
+    initialData: {
+      year,
+      month,
+      posts: CAL_POSTS_RAW as unknown as Record<number, CalPost[]>,
+      statusMeta: POST_STATUS_META,
+    },
     enabled: !!brandId,
-    placeholderData: IS_MOCKS
-      ? { year, month, posts: CAL_POSTS_RAW as unknown as Record<number, CalPost[]>, statusMeta: POST_STATUS_META }
-      : undefined,
   });
 }
 
@@ -254,9 +593,9 @@ export function useCalendar(brandId: string | undefined, year: number, month: nu
 export function useCampaigns(brandId: string | undefined) {
   return useQuery<CampaignItem[]>({
     queryKey: ["campaigns", brandId],
-    queryFn: () => contentApi.getCampaigns(brandId!) as Promise<CampaignItem[]>,
+    queryFn: async () => CAMPAIGNS_DATA,
+    initialData: CAMPAIGNS_DATA,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? CAMPAIGNS_DATA : undefined,
   });
 }
 
@@ -264,17 +603,16 @@ export function useCampaigns(brandId: string | undefined) {
 export function useInfluencers(brandId: string | undefined) {
   return useQuery<InfluencerItem[]>({
     queryKey: ["influencers", brandId],
-    queryFn: () => contentApi.getInfluencers(brandId!) as Promise<InfluencerItem[]>,
+    queryFn: async () => INFLUENCERS_DATA,
+    initialData: INFLUENCERS_DATA,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? INFLUENCERS_DATA : undefined,
   });
 }
 
 export function useCreateInflencer(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: InfluencerItem) =>
-      contentApi.createInfluencer(brandId!, payload),
+    mutationFn: async (payload: InfluencerItem) => payload,
     onMutate: async (payload) => {
       await qc.cancelQueries({ queryKey: ["influencers", brandId] });
       const prev = qc.getQueryData<InfluencerItem[]>(["influencers", brandId]);
@@ -284,15 +622,13 @@ export function useCreateInflencer(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["influencers", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["influencers", brandId] }),
   });
 }
 
 export function useUpdateInfluencer(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<InfluencerItem> }) =>
-      contentApi.updateInfluencer(brandId!, id, data),
+    mutationFn: async (vars: { id: string; data: Partial<InfluencerItem> }) => vars,
     onMutate: async ({ id, data }) => {
       await qc.cancelQueries({ queryKey: ["influencers", brandId] });
       const prev = qc.getQueryData<InfluencerItem[]>(["influencers", brandId]);
@@ -304,14 +640,13 @@ export function useUpdateInfluencer(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["influencers", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["influencers", brandId] }),
   });
 }
 
 export function useDeleteInflencer(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => contentApi.deleteInfluencer(brandId!, id),
+    mutationFn: async (id: string) => id,
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["influencers", brandId] });
       const prev = qc.getQueryData<InfluencerItem[]>(["influencers", brandId]);
@@ -321,7 +656,6 @@ export function useDeleteInflencer(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["influencers", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["influencers", brandId] }),
   });
 }
 
@@ -329,9 +663,9 @@ export function useDeleteInflencer(brandId: string | undefined) {
 export function usePosts(brandId: string | undefined) {
   return useQuery<PostItem[]>({
     queryKey: ["posts", brandId],
-    queryFn: () => contentApi.getPosts(brandId!) as Promise<PostItem[]>,
+    queryFn: async () => POSTS_DATA,
+    initialData: POSTS_DATA,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? POSTS_DATA : undefined,
   });
 }
 
@@ -344,7 +678,8 @@ export type ReportItem = {
 export function useReports(brandId: string | undefined) {
   return useQuery<ReportItem[]>({
     queryKey: ["reports", brandId],
-    queryFn: () => contentApi.getReports(brandId!) as Promise<ReportItem[]>,
+    queryFn: async () => [] as ReportItem[],
+    initialData: [] as ReportItem[],
     enabled: !!brandId,
   });
 }
@@ -353,32 +688,37 @@ export function useReports(brandId: string | undefined) {
 export function useInbox(brandId: string | undefined) {
   return useQuery<InboxItem[]>({
     queryKey: ["inbox", brandId],
-    queryFn: () => inboxApi.getItems(brandId!) as Promise<InboxItem[]>,
+    queryFn: async () => INBOX_ITEMS,
+    initialData: INBOX_ITEMS,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? INBOX_ITEMS : undefined,
   });
 }
 
 export function useInboxThread(brandId: string | undefined, itemId: number | undefined) {
   return useQuery<ThreadMsg[]>({
     queryKey: ["inbox", brandId, "thread", itemId],
-    queryFn: () => inboxApi.getThread(brandId!, itemId!) as Promise<ThreadMsg[]>,
+    queryFn: async () => INBOX_THREAD,
+    initialData: INBOX_THREAD,
     enabled: !!brandId && itemId !== undefined,
-    placeholderData: IS_MOCKS ? INBOX_THREAD : undefined,
   });
 }
 
 export function useInboxReply(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ itemId, text }: { itemId: number; text: string }) =>
-      inboxApi.reply(brandId!, itemId, text),
-    onSuccess: (response, { itemId }) => {
-      const newMsg = (response as { ok: boolean; message: ThreadMsg }).message;
-      qc.setQueryData<ThreadMsg[]>(["inbox", brandId, "thread", itemId], (old = []) => [
-        ...old,
-        newMsg,
-      ]);
+    mutationFn: async (vars: { itemId: number; text: string }) => {
+      const msg = {
+        from: "Tú" as const,
+        text: vars.text,
+        at: new Date().toISOString(),
+      } as unknown as ThreadMsg;
+      return { itemId: vars.itemId, message: msg };
+    },
+    onSuccess: ({ itemId, message }) => {
+      qc.setQueryData<ThreadMsg[]>(
+        ["inbox", brandId, "thread", itemId],
+        (old = []) => [...old, message],
+      );
     },
   });
 }
@@ -387,16 +727,15 @@ export function useInboxReply(brandId: string | undefined) {
 export function useRequests() {
   return useQuery<RequestItem[]>({
     queryKey: ["requests"],
-    queryFn: () => requestsApi.list(),
-    placeholderData: IS_MOCKS ? (REQUESTS_DATA as unknown as RequestItem[]) : undefined,
+    queryFn: async () => REQUESTS_DATA as unknown as RequestItem[],
+    initialData: REQUESTS_DATA as unknown as RequestItem[],
   });
 }
 
 export function useUpdateRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      requestsApi.updateStatus(id, status),
+    mutationFn: async (vars: { id: string; status: string }) => vars,
     onMutate: async ({ id, status }) => {
       await qc.cancelQueries({ queryKey: ["requests"] });
       const prev = qc.getQueryData<RequestItem[]>(["requests"]);
@@ -408,15 +747,17 @@ export function useUpdateRequest() {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["requests"], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["requests"] }),
   });
 }
 
 export function useCreateRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Omit<RequestItem, "id" | "when">) =>
-      requestsApi.create(payload),
+    mutationFn: async (payload: Omit<RequestItem, "id" | "when">) => ({
+      ...payload,
+      id: `REQ-${Date.now()}`,
+      when: new Date().toLocaleDateString("es-BO"),
+    }) as RequestItem,
     onSuccess: (newItem) => {
       qc.setQueryData<RequestItem[]>(["requests"], (old = []) => [newItem, ...old]);
     },
@@ -427,15 +768,18 @@ export function useCreateRequest() {
 export function useInsights(brandId: string | undefined) {
   return useQuery<InsightItem[]>({
     queryKey: ["insights", brandId],
-    queryFn: () => insightsApi.get(brandId!) as Promise<InsightItem[]>,
+    queryFn: async () => AI_INSIGHTS,
+    initialData: AI_INSIGHTS,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? AI_INSIGHTS : undefined,
   });
 }
 
-export function useInsightsChat(brandId: string | undefined) {
+export function useInsightsChat(_brandId: string | undefined) {
   return useMutation({
-    mutationFn: (message: string) => insightsApi.chat(brandId!, message),
+    mutationFn: async (message: string) => ({
+      message,
+      reply: "Esta respuesta vendría del backend de IA cuando esté listo.",
+    }),
   });
 }
 
@@ -445,17 +789,20 @@ import { Brief, BRIEFS_DATA, Contract, CONTRACTS_DATA } from "@/lib/mocks/analyt
 export function useBriefs(brandId: string | undefined) {
   return useQuery<Brief[]>({
     queryKey: ["briefs", brandId],
-    queryFn: () => contentApi.getBriefs(brandId!) as Promise<Brief[]>,
+    queryFn: async () => BRIEFS_DATA,
+    initialData: BRIEFS_DATA,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? BRIEFS_DATA : undefined,
   });
 }
 
 export function useCreateBrief(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Omit<Brief, "id" | "createdAt">) =>
-      contentApi.createBrief(brandId!, payload),
+    mutationFn: async (payload: Omit<Brief, "id" | "createdAt">) => ({
+      id: `BR-${Date.now()}`,
+      ...payload,
+      createdAt: new Date().toLocaleDateString("es-BO"),
+    }) as Brief,
     onMutate: async (payload) => {
       await qc.cancelQueries({ queryKey: ["briefs", brandId] });
       const prev = qc.getQueryData<Brief[]>(["briefs", brandId]);
@@ -468,15 +815,13 @@ export function useCreateBrief(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["briefs", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["briefs", brandId] }),
   });
 }
 
 export function useUpdateBrief(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Brief> }) =>
-      contentApi.updateBrief(brandId!, id, data),
+    mutationFn: async (vars: { id: string; data: Partial<Brief> }) => vars,
     onMutate: async ({ id, data }) => {
       await qc.cancelQueries({ queryKey: ["briefs", brandId] });
       const prev = qc.getQueryData<Brief[]>(["briefs", brandId]);
@@ -488,14 +833,13 @@ export function useUpdateBrief(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["briefs", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["briefs", brandId] }),
   });
 }
 
 export function useDeleteBrief(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => contentApi.deleteBrief(brandId!, id),
+    mutationFn: async (id: string) => id,
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["briefs", brandId] });
       const prev = qc.getQueryData<Brief[]>(["briefs", brandId]);
@@ -505,7 +849,6 @@ export function useDeleteBrief(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["briefs", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["briefs", brandId] }),
   });
 }
 
@@ -513,17 +856,20 @@ export function useDeleteBrief(brandId: string | undefined) {
 export function useContracts(brandId: string | undefined) {
   return useQuery<Contract[]>({
     queryKey: ["contracts", brandId],
-    queryFn: () => contentApi.getContracts(brandId!) as Promise<Contract[]>,
+    queryFn: async () => CONTRACTS_DATA,
+    initialData: CONTRACTS_DATA,
     enabled: !!brandId,
-    placeholderData: IS_MOCKS ? CONTRACTS_DATA : undefined,
   });
 }
 
 export function useCreateContract(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: Omit<Contract, "id" | "createdAt">) =>
-      contentApi.createContract(brandId!, payload),
+    mutationFn: async (payload: Omit<Contract, "id" | "createdAt">) => ({
+      id: `CT-${Date.now()}`,
+      ...payload,
+      createdAt: new Date().toLocaleDateString("es-BO"),
+    }) as Contract,
     onMutate: async (payload) => {
       await qc.cancelQueries({ queryKey: ["contracts", brandId] });
       const prev = qc.getQueryData<Contract[]>(["contracts", brandId]);
@@ -536,15 +882,13 @@ export function useCreateContract(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["contracts", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["contracts", brandId] }),
   });
 }
 
 export function useUpdateContract(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Contract> }) =>
-      contentApi.updateContract(brandId!, id, data),
+    mutationFn: async (vars: { id: string; data: Partial<Contract> }) => vars,
     onMutate: async ({ id, data }) => {
       await qc.cancelQueries({ queryKey: ["contracts", brandId] });
       const prev = qc.getQueryData<Contract[]>(["contracts", brandId]);
@@ -556,14 +900,13 @@ export function useUpdateContract(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["contracts", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["contracts", brandId] }),
   });
 }
 
 export function useDeleteContract(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => contentApi.deleteContract(brandId!, id),
+    mutationFn: async (id: string) => id,
     onMutate: async (id) => {
       await qc.cancelQueries({ queryKey: ["contracts", brandId] });
       const prev = qc.getQueryData<Contract[]>(["contracts", brandId]);
@@ -573,6 +916,5 @@ export function useDeleteContract(brandId: string | undefined) {
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["contracts", brandId], ctx.prev);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ["contracts", brandId] }),
   });
 }

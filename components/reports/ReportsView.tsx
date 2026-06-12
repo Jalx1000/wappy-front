@@ -9,6 +9,7 @@ import { ChannelDot } from "@/components/ui/ChannelDot";
 import { useToast } from "@/components/ui/Toast";
 import { useBrands } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 type ReportStatus = "ready" | "generating" | "scheduled";
 type Report = {
@@ -245,6 +246,7 @@ export function ReportsView() {
 
   return (
     <div className="p-7 overflow-y-auto h-full">
+      <DemoBanner module="Reportes" />
       <div className="flex items-end gap-4 mb-6 flex-wrap">
         <div>
           <h1 style={{ fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>

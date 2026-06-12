@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { ChannelDot } from "@/components/ui/ChannelDot";
@@ -10,9 +10,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Segmented } from "@/components/ui/Segmented";
 import { useToast } from "@/components/ui/Toast";
 import { useUIStore } from "@/store/ui";
-import { useBrands } from "@/lib/hooks";
+import { useBrands, useDeleteBrand } from "@/lib/hooks";
 import { BRAND_DELTAS } from "@/lib/mocks/data";
 import type { Brand } from "@/store/ui";
+import { AddBrandModal } from "./AddBrandModal";
 
 const PLANS = ["360°", "Social + Ads", "Social"];
 
@@ -29,9 +30,12 @@ export function BrandsGrid() {
   const { activeBrand, setActiveBrand } = useUIStore();
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("all");
+  const [addOpen, setAddOpen] = useState(false);
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const toast = useToast();
   const router = useRouter();
   const { data: brands = [] } = useBrands();
+  const deleteBrand = useDeleteBrand();
 
   const shown = brands.filter((b) => {
     const q = search.trim().toLowerCase();
@@ -43,6 +47,24 @@ export function BrandsGrid() {
   const handleOpen = (b: Brand) => {
     setActiveBrand(b);
     router.push("/app/connections");
+  };
+
+  const handleDelete = (b: Brand) => {
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(`¿Eliminar la marca "${b.name}"? Esta acción no se puede deshacer.`);
+      if (!ok) return;
+    }
+    deleteBrand.mutate(b.id, {
+      onSuccess: () => {
+        if (activeBrand?.id === b.id) {
+          const next = brands.find((x) => x.id !== b.id);
+          if (next) setActiveBrand(next);
+        }
+        toast(`Marca "${b.name}" eliminada`, "info");
+      },
+      onError: () => toast("No se pudo eliminar la marca", "info"),
+    });
+    setMenuOpenId(null);
   };
 
   return (
@@ -101,7 +123,10 @@ export function BrandsGrid() {
             onChange={setPlanFilter}
             sm
           />
-          <button className="fobo-btn fobo-btn-primary fobo-btn-sm flex items-center gap-1">
+          <button
+            onClick={() => setAddOpen(true)}
+            className="fobo-btn fobo-btn-primary fobo-btn-sm flex items-center gap-1"
+          >
             <Icon name="plus" size={16} /> Añadir marca
           </button>
         </div>
@@ -203,16 +228,57 @@ export function BrandsGrid() {
                         </span>
                       )}
                     </div>
-                    {/* Row menu stub */}
-                    <button
-                      className="flex items-center justify-center w-8 h-8 rounded-[8px] border-none cursor-pointer flex-shrink-0"
-                      style={{ background: "transparent", color: "var(--color-text-tertiary)" }}
-                      onClick={(e) => e.stopPropagation()}
-                      onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-background)")}
-                      onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
-                    >
-                      <Icon name="dots" size={17} />
-                    </button>
+                    {/* Row menu */}
+                    <div className="relative flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        className="flex items-center justify-center w-8 h-8 rounded-[8px] border-none cursor-pointer"
+                        style={{ background: "transparent", color: "var(--color-text-tertiary)" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuOpenId((prev) => (prev === b.id ? null : b.id));
+                        }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-background)")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+                      >
+                        <Icon name="dots" size={17} />
+                      </button>
+                      {menuOpenId === b.id && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-30"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuOpenId(null);
+                            }}
+                          />
+                          <div
+                            className="absolute right-0 top-[36px] min-w-[160px] rounded-[10px] p-1 z-40"
+                            style={{
+                              background: "var(--color-surface)",
+                              border: "1px solid var(--color-border)",
+                              boxShadow: "var(--shadow-3)",
+                            }}
+                          >
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(b);
+                              }}
+                              className="flex items-center gap-2 w-full px-3 py-[9px] rounded-[8px] text-[13px] font-medium border-none cursor-pointer text-left"
+                              style={{
+                                background: "transparent",
+                                color: "var(--color-error)",
+                                fontFamily: "var(--font-ui)",
+                              }}
+                              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-error-bg)")}
+                              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+                            >
+                              <Icon name="x" size={14} color="var(--color-error)" /> Eliminar marca
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Metrics band */}
@@ -271,6 +337,10 @@ export function BrandsGrid() {
           })}
         </motion.div>
       )}
+
+      <AnimatePresence>
+        {addOpen && <AddBrandModal onClose={() => setAddOpen(false)} />}
+      </AnimatePresence>
     </div>
   );
 }

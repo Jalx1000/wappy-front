@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useUIStore } from "@/store/ui";
@@ -10,8 +10,22 @@ import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 export function BrandSwitcher() {
   const [open, setOpen] = useState(false);
   const { activeBrand, setActiveBrand } = useUIStore();
-  const { data: brands = BRANDS_FALLBACK } = useBrands();
+  // Only treat the result as "real" once the query has succeeded — otherwise
+  // useBrands() returns undefined and we'd fall through to BRANDS_FALLBACK
+  // (mock data with id="auto") which would override a valid persisted brand.
+  const { data: realBrands, isSuccess } = useBrands();
+  const brands = realBrands ?? BRANDS_FALLBACK;
   const brand = activeBrand ?? brands[0];
+
+  // Auto-select first real brand once it loads if nothing is active yet,
+  // or if the persisted activeBrand id isn't in the fetched list (stale mocks).
+  // Gated on isSuccess so we don't react against BRANDS_FALLBACK during loading.
+  useEffect(() => {
+    if (!isSuccess || !realBrands?.length) return;
+    const stillValid =
+      activeBrand && realBrands.some((b) => b.id === activeBrand.id);
+    if (!stillValid) setActiveBrand(realBrands[0]);
+  }, [isSuccess, realBrands, activeBrand, setActiveBrand]);
 
   return (
     <div className="relative">

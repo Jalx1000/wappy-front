@@ -17,6 +17,7 @@ import { useUIStore } from "@/store/ui";
 import { useWebAnalytics, useBrands } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 const RANGE_OPTS = [{ v: "7d", l: "7 días" }, { v: "30d", l: "30 días" }, { v: "90d", l: "90 días" }];
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
@@ -117,6 +118,8 @@ export function WebGA4() {
           <Segmented options={RANGE_OPTS} value={range} onChange={setRange} />
         </div>
       </div>
+
+      <DemoBanner module="GA4" reason="Aún no hay endpoint de backend para GA4." brandName={brand.name} />
 
       {/* KPIs */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>

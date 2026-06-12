@@ -8,6 +8,7 @@ import { useUIStore } from "@/store/ui";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { AI_TONE } from "@/lib/mocks/analyticsData";
 import type { IconName } from "@/components/ui/Icon";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 const AI_REPLIES: Record<string, string> = {
   default: "Analizando los datos de tu cuenta… El engagement orgánico de TikTok sigue siendo tu mayor oportunidad. Recomiendo aumentar la frecuencia de publicación de 3 a 5 videos semanales en el rango horario 19:00–21:00.",
@@ -37,7 +38,8 @@ export function InsightsView() {
     setChat((p) => [...p, { from: "me", text: q }]);
     chatMutation.mutate(q, {
       onSuccess: (res) => {
-        const content = (res as { role: string; content: string }).content ?? getReply(q);
+        const r = res as unknown as { content?: string; reply?: string };
+        const content = r.content ?? r.reply ?? getReply(q);
         setChat((p) => [...p, { from: "ai", text: content }]);
       },
       onError: () => {
@@ -48,6 +50,7 @@ export function InsightsView() {
 
   return (
     <div className="p-7 overflow-y-auto h-full">
+      <DemoBanner module="Insights IA" />
       {/* Header */}
       <div className="flex items-end gap-3 mb-6">
         <div

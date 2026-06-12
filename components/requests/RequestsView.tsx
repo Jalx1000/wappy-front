@@ -11,6 +11,7 @@ import { useRequests, useUpdateRequest } from "@/lib/hooks";
 import { REQ_PRI_META, REQ_STATUS_META } from "@/lib/mocks/analyticsData";
 import type { BadgeVariant } from "@/components/ui/Badge";
 import type { RequestItem } from "@/lib/api/requests";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 type ReqStatus = "abierta" | "progreso" | "cerrada";
 
@@ -37,6 +38,7 @@ export function RequestsView() {
 
   return (
     <div className="p-7 overflow-y-auto h-full">
+      <DemoBanner module="Solicitudes" />
       <div className="flex items-end gap-4 mb-5 flex-wrap">
         <div>
           <h1 style={{ fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>

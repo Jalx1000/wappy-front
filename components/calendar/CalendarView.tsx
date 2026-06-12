@@ -8,6 +8,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { useCalendar } from "@/lib/hooks";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 import { useUIStore } from "@/store/ui";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { POST_STATUS_META } from "@/lib/mocks/analyticsData";
@@ -48,9 +49,6 @@ export function CalendarView() {
   const brandId = activeBrand?.id ?? BRANDS_FALLBACK[0].id;
   const { data: calData, isPending } = useCalendar(brandId, 2026, 6);
 
-  if (isPending) return <CalendarSkeleton />;
-  const calMonth = "Junio 2026";
-
   const [view, setView] = useState<"month" | "list">("month");
   const [posts, setPosts] = useState<CalPost[]>([]);
   const [dayPanel, setDayPanel] = useState<number | null>(null);
@@ -61,6 +59,9 @@ export function CalendarView() {
       setPosts(flattenRaw(calData.posts as Record<number, { ch: string; st: PostStatus; t: string }[]>));
     }
   }, [calData]);
+
+  if (isPending) return <CalendarSkeleton />;
+  const calMonth = "Junio 2026";
 
   const byDay: Record<number, CalPost[]> = {};
   posts.forEach((p) => { (byDay[p.day] = byDay[p.day] || []).push(p); });
@@ -77,6 +78,7 @@ export function CalendarView() {
 
   return (
     <div className="p-7 overflow-y-auto h-full">
+      <DemoBanner module="Calendario" />
       {/* Header */}
       <div className="flex items-center gap-4 mb-4 flex-wrap">
         <div>

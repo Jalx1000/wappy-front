@@ -1,30 +1,76 @@
 import { api } from "./client";
 
+export type SocialSummaryKpis = {
+  followers: number;
+  reach: number;
+  impressions: number;
+  engagement: number;
+  engagement_rate: number;
+  likes: number;
+  shares: number;
+  comments: number;
+};
+
+export type SocialTopPost = {
+  id: number;
+  brandId: number;
+  connectionId: number;
+  externalId: string;
+  publishedAt: string;
+  type: "image" | "video" | "carousel" | "reel" | "story" | string;
+  caption: string;
+  mediaUrl: string | null;
+  metrics: {
+    likes: number;
+    reach: number;
+    shares: number;
+    comments: number;
+    engagement: number;
+  };
+};
+
+export type SocialSummaryResponse = {
+  brandId: number;
+  from: string;
+  to: string;
+  kpis: SocialSummaryKpis;
+  topPosts: SocialTopPost[];
+};
+
+export type SeriesPoint = { date: string; value: number };
+export type SocialOverviewResponse = {
+  connectionId: number;
+  from: string;
+  to: string;
+  series: {
+    likes?: SeriesPoint[];
+    comments?: SeriesPoint[];
+    shares?: SeriesPoint[];
+    reach?: SeriesPoint[];
+    impressions?: SeriesPoint[];
+  };
+};
+
+function qs(params: Record<string, string | number | undefined>) {
+  const pairs = Object.entries(params)
+    .filter(([, v]) => v !== undefined && v !== null)
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`);
+  return pairs.length ? `?${pairs.join("&")}` : "";
+}
+
 export const analyticsApi = {
-  social: (brandId: string) =>
-    api.get<{
-      kpis: unknown[];
-      trend: { reach: number[]; labels: string[] };
-      networks: unknown[];
-      audience: { age: unknown[]; gender: unknown[]; geo: unknown[] };
-      topPosts: unknown[];
-    }>(`/brands/${brandId}/analytics/social`),
+  socialSummary: (from: string, to: string) =>
+    api.get<SocialSummaryResponse>(
+      `/analytics/social/summary${qs({ from, to })}`,
+    ),
 
-  ads: (brandId: string) =>
-    api.get<{
-      kpis: unknown[];
-      platforms: unknown[];
-      campaigns: unknown[];
-      spendTrend: number[];
-    }>(`/brands/${brandId}/analytics/ads`),
+  socialOverview: (connectionId: number, from: string, to: string) =>
+    api.get<SocialOverviewResponse>(
+      `/analytics/social/overview${qs({ connectionId, from, to })}`,
+    ),
 
-  web: (brandId: string) =>
-    api.get<{
-      kpis: unknown[];
-      sessions: { current: number[]; previous: number[]; labels: string[] };
-      sources: unknown[];
-      pages: unknown[];
-      devices: unknown[];
-      funnel: unknown[];
-    }>(`/brands/${brandId}/analytics/web`),
+  socialTopPosts: (connectionId: number, limit = 8) =>
+    api.get<SocialTopPost[]>(
+      `/analytics/social/top-posts${qs({ connectionId, limit })}`,
+    ),
 };

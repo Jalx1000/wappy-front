@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
-import { ConnectModal } from "./ConnectModal";
 import { useToast } from "@/components/ui/Toast";
 import { useUIStore } from "@/store/ui";
-import { useConnections, useConnectMutation, useDisconnectMutation } from "@/lib/hooks";
+import {
+  useConnections,
+  useDisconnectMutation,
+  useSyncConnectionMutation,
+} from "@/lib/hooks";
 import {
   BRANDS as BRANDS_FALLBACK,
   CHANNEL_META,
@@ -16,6 +21,23 @@ import {
 } from "@/lib/mocks/data";
 import type { IconName } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
+
+// Mapeo del slug UI al urlChannel del backend OAuth gateway
+const URL_CHANNEL: Record<string, string> = {
+  facebook: "meta",       // Meta cubre FB + IG en un solo OAuth
+  instagram: "meta",
+  tiktok: "tiktok",
+  tiktokads: "tiktok_ads",
+  youtube: "youtube",
+  linkedin: "linkedin",
+  linkedinads: "linkedin_ads",
+  ga4: "ga4",
+  googleads: "google_ads",
+};
+
+// Canales que existen en CHANNEL_META pero por ahora no se muestran en la UI.
+// Cuando se decida activarlos (ej. integrar TikTok Login Kit), eliminar de aquí.
+const HIDDEN_CHANNELS = new Set<string>(["tiktok", "website", "metaads"]);
 
 const HEALTH_STYLE = {
   ok:   { bg: "var(--color-success-bg)",  color: "var(--color-success-dark)", label: "Saludable" },
@@ -38,35 +60,91 @@ export function ConnectionsHub() {
   const { activeBrand } = useUIStore();
   const brand = activeBrand ?? BRANDS_FALLBACK[0];
   const toast = useToast();
+  const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const { data: conns = [], isPending } = useConnections(brand?.id);
 
-  if (isPending) return <ConnectionsSkeleton />;
-  const connectMutation    = useConnectMutation(brand?.id);
   const disconnectMutation = useDisconnectMutation(brand?.id);
+  const syncMutation       = useSyncConnectionMutation(brand?.id);
 
-  const [modal, setModal] = useState<{ ch: string; reauth?: boolean } | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const connected = conns.filter((c) => c.status === "connected").length;
-  const needsAttn = conns.filter(
+  // Detectar callback del backend OAuth (?success=true&connectionIds=... | ?error=...)
+  const successFlag = searchParams.get("success");
+  const errorFlag = searchParams.get("error");
+  useEffect(() => {
+    if (successFlag === "true") {
+      const ids = searchParams.get("connectionIds") ?? "";
+      toast(
+        ids
+          ? `Conexión creada ✓ (IDs ${ids})`
+          : "Autorización OK, pero no se encontraron cuentas conectables",
+      );
+      qc.invalidateQueries({ queryKey: ["connections", brand?.id] });
+      router.replace("/app/connections");
+    } else if (errorFlag) {
+      toast(`Error al conectar: ${errorFlag}`, "info");
+      router.replace("/app/connections");
+    }
+  }, [successFlag, errorFlag]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (isPending) return <ConnectionsSkeleton />;
+
+  // Build full catalog: every channel from CHANNEL_META, with real data when
+  // a backend connection exists, "available" otherwise.
+  const byCh = new Map(conns.map((c) => [c.ch, c]));
+  const cataloged: ConnRecord[] = Object.keys(CHANNEL_META)
+    .filter((ch) => !HIDDEN_CHANNELS.has(ch))
+    .map((ch) => {
+      const real = byCh.get(ch);
+      if (real) return real;
+      return { ch, account: null, status: "available" as const, health: null };
+    });
+
+  const connected = cataloged.filter((c) => c.status === "connected").length;
+  const needsAttn = cataloged.filter(
     (c) => c.status === "reauth" || c.health === "err" || c.health === "warn"
   ).length;
 
-  const handleConnect = (ch: string, accountName: string, accountId: string) => {
-    connectMutation.mutate({ ch, accountId, accountName });
-    setModal(null);
-    toast(`${CHANNEL_META[ch].label} conectado`);
+  const handleConnect = (ch: string) => {
+    if (!brand?.id) {
+      toast("Selecciona una marca primero", "info");
+      return;
+    }
+    const urlChannel = URL_CHANNEL[ch];
+    if (!urlChannel) {
+      toast(`Canal sin OAuth configurado: ${ch}`, "info");
+      return;
+    }
+    toast(`Te llevamos a ${CHANNEL_META[ch]?.label ?? ch}…`);
+    // Redirige al route handler que adjunta el JWT y forwardea al backend.
+    // El backend devuelve 302 al consent NATIVO de la plataforma.
+    window.location.href = `/oauth/launch/${urlChannel}?brandId=${brand.id}`;
   };
 
-  const handleDisconnect = (ch: string) => {
-    disconnectMutation.mutate(ch);
+  const handleDisconnect = (conn: ConnRecord) => {
+    if (!conn.id) {
+      toast("Esta conexión aún no existe en backend", "info");
+      return;
+    }
+    disconnectMutation.mutate({ id: conn.id, ch: conn.ch });
     setExpanded(null);
-    toast(`${CHANNEL_META[ch].label} desconectado`, "info");
+    toast(`${CHANNEL_META[conn.ch]?.label ?? conn.ch} desconectado`, "info");
   };
 
   const handleSync = () => {
-    toast("Sincronizando todas las fuentes…", "info");
+    const targets = cataloged.filter(
+      (c): c is ConnRecord & { id: number } =>
+        typeof c.id === "number" && c.status === "connected",
+    );
+    if (!targets.length) {
+      toast("No hay conexiones para sincronizar", "info");
+      return;
+    }
+    targets.forEach((c) => syncMutation.mutate(c.id));
+    toast(`Sincronizando ${targets.length} fuente(s)…`, "info");
   };
 
   return (
@@ -106,7 +184,7 @@ export function ConnectionsHub() {
         {[
           {
             label: "Conectados",
-            value: `${connected} / ${conns.length}`,
+            value: `${connected} / ${cataloged.length}`,
             color: "var(--color-success)",
             icon: "check" as IconName,
           },
@@ -118,7 +196,8 @@ export function ConnectionsHub() {
           },
           {
             label: "Última sincronización",
-            value: "hace 8 min",
+            value:
+              conns.find((c) => c.lastSync)?.lastSync ?? "sin sincronizar",
             color: "var(--color-secondary-ink)",
             icon: "refresh" as IconName,
           },
@@ -159,7 +238,7 @@ export function ConnectionsHub() {
 
       {/* Categories */}
       {CHANNEL_CATEGORIES.map((cat) => {
-        const items = conns.filter((c) => CHANNEL_META[c.ch]?.cat === cat.id);
+        const items = cataloged.filter((c) => CHANNEL_META[c.ch]?.cat === cat.id);
         if (!items.length) return null;
         const connCount = items.filter((c) => c.status === "connected").length;
         return (
@@ -188,27 +267,15 @@ export function ConnectionsHub() {
                   onToggleExpand={() =>
                     setExpanded((prev) => (prev === conn.ch ? null : conn.ch))
                   }
-                  onConnect={() => setModal({ ch: conn.ch })}
-                  onReauth={() => setModal({ ch: conn.ch, reauth: true })}
-                  onDisconnect={() => handleDisconnect(conn.ch)}
+                  onConnect={() => handleConnect(conn.ch)}
+                  onReauth={() => handleConnect(conn.ch)}
+                  onDisconnect={() => handleDisconnect(conn)}
                 />
               ))}
             </div>
           </div>
         );
       })}
-
-      {/* Connect modal */}
-      <AnimatePresence>
-        {modal && (
-          <ConnectModal
-            channel={modal.ch}
-            reauth={modal.reauth}
-            onClose={() => setModal(null)}
-            onConnect={handleConnect}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -9,7 +9,13 @@ import { Badge } from "@/components/ui/Badge";
 import { Segmented } from "@/components/ui/Segmented";
 import { AreaChart } from "@/components/ui/AreaChart";
 import { useUIStore } from "@/store/ui";
-import { useBrands, useDashboard } from "@/lib/hooks";
+import {
+  useBrands,
+  useDashboard,
+  useDashboardSeries,
+  useConnections,
+} from "@/lib/hooks";
+import { CHANNEL_META } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
 import {
   BRANDS as BRANDS_FALLBACK,
@@ -77,14 +83,9 @@ function DashboardSkeleton() {
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export function Dashboard() {
-  const { activeBrand, setActiveBrand } = useUIStore();
+  const { activeBrand } = useUIStore();
   const { data: brands = BRANDS_FALLBACK } = useBrands();
   const brand = activeBrand ?? brands[0];
-  const { data: dashData, isPending } = useDashboard(brand?.id);
-  const kpis   = dashData?.kpis   ?? [];
-  const alerts = dashData?.alerts ?? [];
-
-  if (isPending) return <DashboardSkeleton />;
 
   const [view, setView]     = useState<View>("brand");
   const [period, setPeriod] = useState<Period>("30d");
@@ -93,10 +94,51 @@ export function Dashboard() {
   const P = PERIODS[period];
   const S = DASH_SERIES[metric];
 
-  // Build chart data
-  const rawData = P.days === 7 ? S.data.slice(-7) : S.data;
-  const rawLabels = P.days === 7 ? ["", "", "", "", "", "", "Hoy"] : TREND_LABELS;
-  const chartData = rawData.map((v, i) => ({ label: rawLabels[i], value: v * S.k * P.mult }));
+  const { data: dashData, isPending } = useDashboard(brand?.id, P.days);
+  const { data: conns = [] } = useConnections(brand?.id);
+  const firstConnId = conns[0]?.id;
+  const { data: realSeries } = useDashboardSeries(brand?.id, firstConnId, P.days);
+
+  const kpis = dashData?.kpis ?? [];
+
+  // Derive alerts from connection health (until backend has /alerts endpoint).
+  const alerts: { type: string; text: string; brand: string }[] = conns
+    .filter((c) => c.status === "reauth" || c.health === "warn" || c.health === "err")
+    .map((c) => ({
+      type: c.health === "err" || c.status === "reauth" ? "err" : "warn",
+      text: `${CHANNEL_META[c.ch]?.label ?? c.ch} requiere atención`,
+      brand: brand?.name ?? "",
+    }));
+
+  if (isPending) return <DashboardSkeleton />;
+
+  // Map UI metric to backend series key.
+  const METRIC_TO_BACKEND: Record<Metric, string | null> = {
+    reach: "reach",
+    inter: "likes",
+    fans: null,
+  };
+  const backendKey = METRIC_TO_BACKEND[metric];
+  const realSeriesPoints =
+    backendKey && realSeries?.[backendKey]
+      ? realSeries[backendKey]
+      : null;
+
+  // Build chart data: real series if available, mock fallback otherwise.
+  let chartData: Array<{ label: string; value: number }>;
+  if (realSeriesPoints && realSeriesPoints.length) {
+    chartData = realSeriesPoints.map((p) => ({
+      label: p.date.slice(5), // "MM-DD"
+      value: p.value,
+    }));
+  } else {
+    const rawData = P.days === 7 ? S.data.slice(-7) : S.data;
+    const rawLabels = P.days === 7 ? ["", "", "", "", "", "", "Hoy"] : TREND_LABELS;
+    chartData = rawData.map((v, i) => ({
+      label: rawLabels[i],
+      value: v * S.k * P.mult,
+    }));
+  }
 
   const criticalAlert = alerts.find((a) => a.type === "err");
 

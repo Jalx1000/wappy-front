@@ -9,6 +9,7 @@ import { AvailabilityTab } from "./AvailabilityTab";
 import { CompareTab } from "./CompareTab";
 import { PaymentsTab } from "./PaymentsTab";
 import { Icon } from "@/components/ui/Icon";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 type TabId = "tablero" | "roster" | "disponibilidad" | "comparar" | "cobros" | "briefs" | "contratos";
 
@@ -27,6 +28,7 @@ export function InfluencersView() {
 
   return (
     <div className="p-7 overflow-hidden h-full flex flex-col">
+      <DemoBanner module="Influencers" />
       <div className="mb-6">
         <h1 style={{ fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>
           Influencers

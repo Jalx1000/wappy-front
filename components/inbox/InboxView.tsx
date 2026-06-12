@@ -8,6 +8,7 @@ import { Segmented } from "@/components/ui/Segmented";
 import { useInbox, useInboxThread, useInboxReply } from "@/lib/hooks";
 import { useUIStore } from "@/store/ui";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
+import { DemoBanner } from "@/components/ui/DemoBanner";
 
 type FilterKey = "all" | "unread" | "DM" | "Comentario";
 const FILTERS: Array<{ v: FilterKey; l: string }> = [
@@ -40,6 +41,7 @@ export function InboxView() {
 
   return (
     <div className="flex flex-col h-full" style={{ padding: "28px 28px 0" }}>
+      <DemoBanner module="Inbox" />
       <div className="flex items-end gap-4 mb-4 flex-wrap">
         <div>
           <h1 style={{ fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>
