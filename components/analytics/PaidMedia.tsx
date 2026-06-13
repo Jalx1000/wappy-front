@@ -9,7 +9,6 @@ import { BarChart } from "@/components/ui/BarChart";
 import { ChannelDot } from "@/components/ui/ChannelDot";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
-import { DemoBanner } from "@/components/ui/DemoBanner";
 import { useUIStore } from "@/store/ui";
 import { useAdsAnalytics, useBrands } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK, CHANNEL_META } from "@/lib/mocks/data";
@@ -42,9 +41,38 @@ export function PaidMedia() {
   const { activeBrand } = useUIStore();
   const { data: brands = BRANDS_FALLBACK } = useBrands();
   const brand = activeBrand ?? brands[0];
-  const { data, isPending } = useAdsAnalytics(brand?.id);
+  const { data, isPending, isError } = useAdsAnalytics(brand?.id, range);
 
   if (isPending) return <AdsSkeleton />;
+
+  if (isError || !data) {
+    return (
+      <div className="p-7 max-w-[1440px] flex flex-col gap-4">
+        <h1
+          style={{
+            fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22,
+            letterSpacing: "-0.02em", color: "var(--color-text-primary)",
+          }}
+        >
+          Paid Media / Ads
+        </h1>
+        <div
+          className="rounded-xl p-6 text-center"
+          style={{
+            border: "1px dashed var(--color-border)",
+            background: "var(--color-surface)",
+          }}
+        >
+          <div className="text-[15px] font-medium mb-1" style={{ color: "var(--color-text-primary)" }}>
+            Conectá Google Ads, Meta Ads, TikTok Ads o LinkedIn Ads para ver datos reales.
+          </div>
+          <div className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+            Andá a <strong>Conexiones</strong> y autorizá la plataforma para <strong>{brand.name}</strong>.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const kpis      = data?.kpis      ?? [];
   const platforms = data?.platforms  ?? [];
@@ -73,7 +101,18 @@ export function PaidMedia() {
         </div>
       </div>
 
-      <DemoBanner module="Ads (Meta/Google/TikTok)" brandName={brand.name} />
+      {data?.stale && data?.lastSyncAt && (
+        <div
+          className="rounded-lg p-3 mb-4 text-[13px]"
+          style={{
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          Última sincronización: {new Date(data.lastSyncAt).toLocaleString("es-BO")}. Los datos pueden estar atrasados.
+        </div>
+      )}
 
       {/* KPIs */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>

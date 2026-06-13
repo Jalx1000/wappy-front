@@ -33,11 +33,12 @@ const URL_CHANNEL: Record<string, string> = {
   linkedinads: "linkedin_ads",
   ga4: "ga4",
   googleads: "google_ads",
+  metaads: "meta-ads",
 };
 
 // Canales que existen en CHANNEL_META pero por ahora no se muestran en la UI.
 // Cuando se decida activarlos (ej. integrar TikTok Login Kit), eliminar de aquí.
-const HIDDEN_CHANNELS = new Set<string>(["tiktok", "website", "metaads"]);
+const HIDDEN_CHANNELS = new Set<string>(["tiktok", "website"]);
 
 const HEALTH_STYLE = {
   ok:   { bg: "var(--color-success-bg)",  color: "var(--color-success-dark)", label: "Saludable" },

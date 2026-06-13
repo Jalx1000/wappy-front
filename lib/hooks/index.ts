@@ -490,26 +490,32 @@ export function useSocialAnalytics(
   });
 }
 
-// ── Analytics — Ads (NO BACKEND — pure mock) ─────────────────────────────────
-export function useAdsAnalytics(brandId: string | undefined) {
-  return useQuery<AdsAnalyticsData>({
-    queryKey: ["analytics", "ads", brandId],
-    queryFn: async () =>
-      ({
-        kpis: ADS_KPIS,
-        platforms: ADS_PLATFORMS,
-        campaigns: ADS_CAMPAIGNS,
-        spendTrend: ADS_SPEND_TREND,
-      }) as AdsAnalyticsData,
+// ── Analytics — Ads (real backend) ───────────────────────────────────────────
+export function useAdsAnalytics(
+  brandId: string | undefined,
+  range: string = "30d",
+) {
+  return useQuery<AdsAnalyticsData & { stale?: boolean; lastSyncAt?: string | null }>({
+    queryKey: ["analytics", "ads", brandId, range],
+    queryFn: async () => {
+      const { from, to } = rangeToDates(range);
+      const [overview, campaigns] = await Promise.all([
+        analyticsApi.adsOverview(from, to),
+        analyticsApi.adsCampaigns(from, to),
+      ]);
+      return {
+        kpis: overview.kpis as unknown as AdsKpi[],
+        platforms: overview.platforms as unknown as typeof ADS_PLATFORMS,
+        campaigns: campaigns.campaigns as unknown as typeof ADS_CAMPAIGNS,
+        spendTrend: overview.spendTrend.length
+          ? overview.spendTrend
+          : ADS_SPEND_TREND,
+        stale: overview.stale,
+        lastSyncAt: overview.lastSyncAt,
+      };
+    },
     enabled: !!brandId,
-    placeholderData: IS_MOCKS
-      ? {
-          kpis: ADS_KPIS,
-          platforms: ADS_PLATFORMS,
-          campaigns: ADS_CAMPAIGNS,
-          spendTrend: ADS_SPEND_TREND,
-        }
-      : undefined,
+    retry: false,
   });
 }
 

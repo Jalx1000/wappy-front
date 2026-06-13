@@ -58,6 +58,7 @@ type BackendChannel =
   | "linkedin_ads"
   | "youtube"
   | "google_ads"
+  | "meta_ads"
   | "ga4";
 
 type BackendConnectionStatus =
@@ -91,6 +92,7 @@ const CHANNEL_BACKEND_TO_UI: Record<BackendChannel, string> = {
   linkedin_ads: "linkedinads",
   youtube: "youtube",
   google_ads: "googleads",
+  meta_ads: "metaads",
   ga4: "ga4",
 };
 
@@ -103,7 +105,7 @@ const CHANNEL_UI_TO_BACKEND: Record<string, BackendChannel> = {
   linkedinads: "linkedin_ads",
   youtube: "youtube",
   googleads: "google_ads",
-  metaads: "facebook_page",
+  metaads: "meta_ads",
   ga4: "ga4",
 };
 

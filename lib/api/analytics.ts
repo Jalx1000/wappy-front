@@ -103,4 +103,59 @@ export const analyticsApi = {
 
   webCities: (from: string, to: string) =>
     api.get<string[]>(`/analytics/web/cities${qs({ from, to })}`),
+
+  adsOverview: (from: string, to: string) =>
+    api.get<AdsOverviewResponse>(
+      `/analytics/ads/overview${qs({ from, to, compare: "true" })}`,
+    ),
+
+  adsCampaigns: (from: string, to: string) =>
+    api.get<AdsCampaignsResponse>(
+      `/analytics/ads/campaigns${qs({ from, to })}`,
+    ),
+};
+
+export type AdsKpi = {
+  label: string;
+  value: string;
+  delta: number;
+  goodDown?: boolean;
+  spark: number[];
+};
+
+export type AdsPlatform = {
+  ch: string;
+  spend: string;
+  roas: string;
+  conv: number;
+  cpa: string;
+  pct: number;
+};
+
+export type AdsCampaign = {
+  name: string;
+  platform: string;
+  status: string;
+  spend: string;
+  roas: string;
+  conv: number;
+  budget: number;
+};
+
+export type AdsOverviewResponse = {
+  brandId: number;
+  from: string;
+  to: string;
+  kpis: AdsKpi[];
+  platforms: AdsPlatform[];
+  spendTrend: number[];
+  stale: boolean;
+  lastSyncAt: string | null;
+};
+
+export type AdsCampaignsResponse = {
+  brandId: number;
+  from: string;
+  to: string;
+  campaigns: AdsCampaign[];
 };
