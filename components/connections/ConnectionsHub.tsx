@@ -270,6 +270,16 @@ export function ConnectionsHub() {
                   onConnect={() => handleConnect(conn.ch)}
                   onReauth={() => handleConnect(conn.ch)}
                   onDisconnect={() => handleDisconnect(conn)}
+                  onSync={
+                    typeof conn.id === "number" && conn.status === "connected"
+                      ? () => syncMutation.mutate(conn.id as number)
+                      : undefined
+                  }
+                  isSyncing={
+                    typeof conn.id === "number" &&
+                    syncMutation.isPending &&
+                    syncMutation.variables === conn.id
+                  }
                 />
               ))}
             </div>
@@ -288,10 +298,12 @@ interface ChannelCardProps {
   onConnect: () => void;
   onReauth: () => void;
   onDisconnect: () => void;
+  onSync?: () => void;
+  isSyncing?: boolean;
 }
 
 function ChannelCard({
-  conn, expanded, onToggleExpand, onConnect, onReauth, onDisconnect,
+  conn, expanded, onToggleExpand, onConnect, onReauth, onDisconnect, onSync, isSyncing,
 }: ChannelCardProps) {
   const ch = CHANNEL_META[conn.ch];
   const available = conn.status === "available";
@@ -435,6 +447,20 @@ function ChannelCard({
             >
               {expanded ? "Ocultar" : "Detalles"}
             </button>
+            {onSync && (
+              <button
+                onClick={onSync}
+                disabled={isSyncing}
+                title="Sincronizar ahora"
+                className="fobo-btn fobo-btn-secondary fobo-btn-sm px-3"
+              >
+                <Icon
+                  name="refresh"
+                  size={15}
+                  className={isSyncing ? "animate-spin" : undefined}
+                />
+              </button>
+            )}
             <button
               onClick={onDisconnect}
               title="Desconectar"

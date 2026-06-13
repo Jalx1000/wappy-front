@@ -14,10 +14,9 @@ import { HBars } from "@/components/ui/HBars";
 import { DonutChart } from "@/components/ui/DonutChart";
 import { Icon } from "@/components/ui/Icon";
 import { useUIStore } from "@/store/ui";
-import { useWebAnalytics, useBrands } from "@/lib/hooks";
+import { useWebAnalytics, useWebCities, useBrands } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { DemoBanner } from "@/components/ui/DemoBanner";
 
 const RANGE_OPTS = [{ v: "7d", l: "7 días" }, { v: "30d", l: "30 días" }, { v: "90d", l: "90 días" }];
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
@@ -82,13 +81,52 @@ function WebSkeleton() {
 }
 
 export function WebGA4() {
-  const [range, setRange] = useState("7d");
+  const [range, setRange] = useState("30d");
+  const [city, setCity] = useState<string>("");
   const { activeBrand } = useUIStore();
   const { data: brands = BRANDS_FALLBACK } = useBrands();
   const brand = activeBrand ?? brands[0];
-  const { data, isPending } = useWebAnalytics(brand?.id);
+  const { data, isPending, isError, error } = useWebAnalytics(
+    brand?.id,
+    range,
+    city || undefined,
+  );
+  const { data: cities = [] } = useWebCities(brand?.id, range);
 
   if (isPending) return <WebSkeleton />;
+
+  const notConnected =
+    isError &&
+    (error as { status?: number })?.status === 404;
+
+  if (notConnected) {
+    return (
+      <div className="p-7 max-w-[1440px] flex flex-col gap-4">
+        <h1
+          style={{
+            fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22,
+            letterSpacing: "-0.02em", color: "var(--color-text-primary)",
+          }}
+        >
+          Web · GA4
+        </h1>
+        <div
+          className="rounded-xl p-6 text-center"
+          style={{
+            border: "1px dashed var(--color-border)",
+            background: "var(--color-surface)",
+          }}
+        >
+          <div className="text-[15px] font-medium mb-1" style={{ color: "var(--color-text-primary)" }}>
+            Conectá una property GA4 para ver datos reales.
+          </div>
+          <div className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+            Andá a <strong>Conexiones</strong> y autorizá Google Analytics 4 para <strong>{brand.name}</strong>.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const kpis    = data?.kpis    ?? [];
   const sessions = data?.sessions ?? { current: [], previous: [], labels: [] };
@@ -114,12 +152,39 @@ export function WebGA4() {
             Tráfico del sitio de <strong style={{ color: "var(--color-text-primary)" }}>{brand.name}</strong>
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {cities.length > 0 && (
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="fobo-btn fobo-btn-secondary fobo-btn-sm"
+              style={{ minWidth: 140 }}
+            >
+              <option value="">Todas las ciudades</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          )}
           <Segmented options={RANGE_OPTS} value={range} onChange={setRange} />
         </div>
       </div>
 
-      <DemoBanner module="GA4" reason="Aún no hay endpoint de backend para GA4." brandName={brand.name} />
+      {data?.stale && data?.lastSyncAt && (
+        <div
+          className="rounded-lg p-3 mb-4 text-[13px] flex items-center gap-2"
+          style={{
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.3)",
+            color: "var(--color-text-primary)",
+          }}
+        >
+          <Icon name="clock" size={14} />
+          Última sincronización: {new Date(data.lastSyncAt).toLocaleString("es-BO")}. Los datos pueden estar atrasados.
+        </div>
+      )}
 
       {/* KPIs */}
       <motion.div variants={stagger} initial="hidden" animate="show" className="grid gap-4 mb-5" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>

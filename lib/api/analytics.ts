@@ -58,6 +58,28 @@ function qs(params: Record<string, string | number | undefined>) {
   return pairs.length ? `?${pairs.join("&")}` : "";
 }
 
+export type WebKpi = {
+  label: string;
+  value: number;
+  delta: number;
+  spark: number[];
+};
+
+export type WebOverviewResponse = {
+  brandId: number;
+  connectionId: number;
+  from: string;
+  to: string;
+  kpis: WebKpi[];
+  sessions: { current: number[]; previous: number[]; labels: string[] };
+  sources: { name: string; sessions: number }[];
+  pages: { path: string; views: number; time: string }[];
+  devices: { name: string; value: number }[];
+  funnel: { label: string; count: number; pct: number }[];
+  stale: boolean;
+  lastSyncAt: string | null;
+};
+
 export const analyticsApi = {
   socialSummary: (from: string, to: string) =>
     api.get<SocialSummaryResponse>(
@@ -73,4 +95,12 @@ export const analyticsApi = {
     api.get<SocialTopPost[]>(
       `/analytics/social/top-posts${qs({ connectionId, limit })}`,
     ),
+
+  webOverview: (from: string, to: string, city?: string) =>
+    api.get<WebOverviewResponse>(
+      `/analytics/web/overview${qs({ from, to, city })}`,
+    ),
+
+  webCities: (from: string, to: string) =>
+    api.get<string[]>(`/analytics/web/cities${qs({ from, to })}`),
 };

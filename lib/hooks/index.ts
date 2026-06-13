@@ -74,6 +74,10 @@ export type WebAnalyticsData = {
   pages: typeof WEB_PAGES;
   devices: typeof WEB_DEVICES;
   funnel: typeof WEB_FUNNEL;
+  stale?: boolean;
+  lastSyncAt?: string | null;
+  connectionId?: number;
+  isDemo?: boolean;
 };
 
 export type CalendarData = {
@@ -509,30 +513,73 @@ export function useAdsAnalytics(brandId: string | undefined) {
   });
 }
 
-// ── Analytics — Web / GA4 (NO BACKEND — pure mock) ───────────────────────────
-export function useWebAnalytics(brandId: string | undefined) {
+// ── Analytics — Web / GA4 (real backend) ─────────────────────────────────────
+const WEB_RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
+
+function rangeToDates(range: string): { from: string; to: string } {
+  const days = WEB_RANGE_DAYS[range] ?? 30;
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
+  return {
+    from: from.toISOString().slice(0, 10),
+    to: to.toISOString().slice(0, 10),
+  };
+}
+
+function formatWebKpiValue(label: string, value: number): string {
+  if (label === "Tasa de conversión") return `${value.toFixed(1)}%`;
+  if (label === "Páginas / sesión") return value.toFixed(1);
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(Math.round(value));
+}
+
+export function useWebAnalytics(
+  brandId: string | undefined,
+  range: string = "30d",
+  city?: string,
+) {
   return useQuery<WebAnalyticsData>({
-    queryKey: ["analytics", "web", brandId],
-    queryFn: async () =>
-      ({
-        kpis: WEB_KPIS,
-        sessions: { current: WEB_SESSIONS_THIS, previous: WEB_SESSIONS_PREV, labels: WEB_SESSION_LABELS },
-        sources: WEB_SOURCES,
-        pages: WEB_PAGES,
-        devices: WEB_DEVICES,
-        funnel: WEB_FUNNEL,
-      }) as WebAnalyticsData,
+    queryKey: ["analytics", "web", brandId, range, city ?? null],
+    queryFn: async () => {
+      const { from, to } = rangeToDates(range);
+      const res = await analyticsApi.webOverview(from, to, city);
+      return {
+        kpis: res.kpis.map((k) => ({
+          label: k.label,
+          value: formatWebKpiValue(k.label, k.value),
+          delta: k.delta,
+          spark: k.spark?.length
+            ? k.spark.slice(-7)
+            : [0, 0, 0, 0, 0, 0, 0],
+        })) as unknown as WebKpi[],
+        sessions: res.sessions,
+        sources: res.sources as unknown as typeof WEB_SOURCES,
+        pages: res.pages as unknown as typeof WEB_PAGES,
+        devices: res.devices as unknown as typeof WEB_DEVICES,
+        funnel: res.funnel as unknown as typeof WEB_FUNNEL,
+        stale: res.stale,
+        lastSyncAt: res.lastSyncAt,
+        connectionId: res.connectionId,
+      } satisfies WebAnalyticsData;
+    },
     enabled: !!brandId,
-    placeholderData: IS_MOCKS
-      ? {
-          kpis: WEB_KPIS,
-          sessions: { current: WEB_SESSIONS_THIS, previous: WEB_SESSIONS_PREV, labels: WEB_SESSION_LABELS },
-          sources: WEB_SOURCES,
-          pages: WEB_PAGES,
-          devices: WEB_DEVICES,
-          funnel: WEB_FUNNEL,
-        }
-      : undefined,
+    retry: false,
+  });
+}
+
+export function useWebCities(
+  brandId: string | undefined,
+  range: string = "30d",
+) {
+  return useQuery<string[]>({
+    queryKey: ["analytics", "web-cities", brandId, range],
+    queryFn: async () => {
+      const { from, to } = rangeToDates(range);
+      return analyticsApi.webCities(from, to);
+    },
+    enabled: !!brandId,
+    retry: false,
   });
 }
 

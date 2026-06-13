@@ -223,9 +223,22 @@ export const brandsApi = {
   },
 
   syncConnection: (connectionId: number) =>
-    api.post<{ jobId?: string | number }>(
+    api.post<{ jobIds: (string | number | undefined)[] }>(
       `/connections/${connectionId}/sync`,
       {},
+    ),
+
+  getSyncJob: (
+    connectionId: number,
+    jobId: string,
+    queue?: "web" | "ads" | "social",
+  ) =>
+    api.get<{
+      state: string;
+      progress: number | object | string | null;
+      failedReason?: string;
+    }>(
+      `/connections/${connectionId}/sync-jobs/${encodeURIComponent(jobId)}${queue ? `?queue=${queue}` : ""}`,
     ),
 
   getDashboard: (brandId: string) =>
