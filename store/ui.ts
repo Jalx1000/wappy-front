@@ -59,6 +59,10 @@ export const useUIStore = create<UIState>()(
     }),
     {
       name: "fobo-ui",
+      // Skip auto-hydration so el server-render y el primer client-render
+      // sean idénticos (resuelve React error #418). Hidratamos manualmente
+      // en el shell después del mount via `useHydrateUIStore`.
+      skipHydration: true,
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
         activeBrand: s.activeBrand,
@@ -67,3 +71,15 @@ export const useUIStore = create<UIState>()(
     }
   )
 );
+
+/**
+ * Hook helper para hidratar el store después del mount (cliente solamente).
+ * Debe llamarse una sola vez en el layout del app shell.
+ */
+export function useHydrateUIStore() {
+  if (typeof window !== "undefined") {
+    // useUIStore.persist.rehydrate es idempotente: si ya está hidratado no
+    // hace nada.
+    void useUIStore.persist.rehydrate();
+  }
+}

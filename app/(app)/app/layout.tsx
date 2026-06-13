@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { ToastProvider } from "@/components/ui/Toast";
@@ -9,6 +9,16 @@ import { useUIStore } from "@/store/ui";
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { toggleSidebar, setCommandPaletteOpen } = useUIStore();
+  const [hydrated, setHydrated] = useState(false);
+
+  // Hidratar zustand persist solo después del mount → evita el hydration
+  // mismatch (React error #418) entre SSR y client. El store está marcado
+  // como `skipHydration: true` para que NO se lea localStorage en el primer
+  // render del cliente.
+  useEffect(() => {
+    void useUIStore.persist.rehydrate();
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -24,6 +34,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [toggleSidebar, setCommandPaletteOpen]);
+
+  // Antes de hidratar el store, no rendereamos el shell — los componentes
+  // hijos asumen que activeBrand y demás ya están cargados de localStorage.
+  if (!hydrated) return null;
 
   return (
     <div

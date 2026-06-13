@@ -14,7 +14,11 @@ export function BrandSwitcher() {
   // useBrands() returns undefined and we'd fall through to BRANDS_FALLBACK
   // (mock data with id="auto") which would override a valid persisted brand.
   const { data: realBrands, isSuccess } = useBrands();
-  const brands = realBrands ?? BRANDS_FALLBACK;
+  // ?? solo cae si realBrands es null/undefined; con [] el fallback no aplica.
+  // Si el user no tiene brands (recién registrado), no usamos los mocks como
+  // fallback porque crearíamos brands fantasma.
+  const brands =
+    realBrands && realBrands.length > 0 ? realBrands : BRANDS_FALLBACK;
   const brand = activeBrand ?? brands[0];
 
   // Auto-select first real brand once it loads if nothing is active yet,
@@ -26,6 +30,30 @@ export function BrandSwitcher() {
       activeBrand && realBrands.some((b) => b.id === activeBrand.id);
     if (!stillValid) setActiveBrand(realBrands[0]);
   }, [isSuccess, realBrands, activeBrand, setActiveBrand]);
+
+  // Si el query terminó pero el user no tiene brands, renderizar un CTA en vez
+  // de crashear con brand.tint = undefined.
+  if (isSuccess && realBrands && realBrands.length === 0) {
+    return (
+      <a
+        href="/app/brands"
+        className="flex items-center gap-2 h-[42px] px-3 rounded-[11px] border text-[13px] font-medium"
+        style={{
+          border: "1px solid var(--color-border)",
+          background: "var(--color-background)",
+          color: "var(--color-text-secondary)",
+          fontFamily: "var(--font-ui)",
+          textDecoration: "none",
+        }}
+      >
+        <Icon name="plus" size={14} /> Crea tu primera marca
+      </a>
+    );
+  }
+
+  // Defensive: si por cualquier razón aún no hay brand, no rendereamos
+  // (puede pasar durante el primer render mientras el query carga).
+  if (!brand) return null;
 
   return (
     <div className="relative">
