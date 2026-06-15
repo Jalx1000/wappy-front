@@ -12,7 +12,9 @@ import {
   useConnections,
   useDisconnectMutation,
   useSyncConnectionMutation,
+  useOrphans,
 } from "@/lib/hooks";
+import { ChangeBrandModal } from "@/components/connections/ChangeBrandModal";
 import {
   BRANDS as BRANDS_FALLBACK,
   CHANNEL_META,
@@ -26,6 +28,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 const URL_CHANNEL: Record<string, string> = {
   facebook: "meta",       // Meta cubre FB + IG en un solo OAuth
   instagram: "meta",
+  instagramlogin: "instagram-login",
   tiktok: "tiktok",
   tiktokads: "tiktok_ads",
   youtube: "youtube",
@@ -66,11 +69,17 @@ export function ConnectionsHub() {
   const searchParams = useSearchParams();
 
   const { data: conns = [], isPending } = useConnections(brand?.id);
+  const { data: orphans = [] } = useOrphans();
 
   const disconnectMutation = useDisconnectMutation(brand?.id);
   const syncMutation       = useSyncConnectionMutation(brand?.id);
 
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [reassignTarget, setReassignTarget] = useState<{
+    id: number;
+    channel: string;
+    accountHandle: string;
+  } | null>(null);
 
   // Detectar callback del backend OAuth (?success=true&connectionIds=... | ?error=...)
   const successFlag = searchParams.get("success");
@@ -177,6 +186,30 @@ export function ConnectionsHub() {
         </div>
       </div>
 
+      {orphans.length > 0 && (
+        <button
+          onClick={() => router.push("/app/connections/orphans")}
+          className="w-full mb-4 fobo-card p-4 flex items-center gap-3 text-left"
+          style={{
+            border: "1px solid rgba(245, 158, 11, 0.4)",
+            background: "rgba(245, 158, 11, 0.06)",
+          }}
+        >
+          <Icon name="bell" size={18} color="var(--color-warning)" />
+          <div className="flex-1">
+            <div className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+              Hay {orphans.length} cuenta(s) sin asignar
+            </div>
+            <div className="text-[12.5px]" style={{ color: "var(--color-text-secondary)" }}>
+              Detectadas por OAuth pero no asignadas a ninguna marca. Cualquier admin las puede asignar.
+            </div>
+          </div>
+          <div className="text-[13px] font-semibold" style={{ color: "var(--color-warning)" }}>
+            Ver y asignar →
+          </div>
+        </button>
+      )}
+
       {/* Summary strip */}
       <div
         className="grid gap-4 mb-6"
@@ -281,12 +314,33 @@ export function ConnectionsHub() {
                     syncMutation.isPending &&
                     syncMutation.variables === conn.id
                   }
+                  onChangeBrand={
+                    typeof conn.id === "number"
+                      ? () =>
+                          setReassignTarget({
+                            id: conn.id as number,
+                            channel: conn.ch,
+                            accountHandle: conn.account ?? "",
+                          })
+                      : undefined
+                  }
                 />
               ))}
             </div>
           </div>
         );
       })}
+
+      <ChangeBrandModal
+        open={reassignTarget !== null}
+        connectionId={reassignTarget?.id ?? null}
+        currentBrandId={brand?.id ?? null}
+        channelLabel={
+          reassignTarget ? CHANNEL_META[reassignTarget.channel]?.label ?? reassignTarget.channel : ""
+        }
+        accountHandle={reassignTarget?.accountHandle ?? ""}
+        onClose={() => setReassignTarget(null)}
+      />
     </div>
   );
 }
@@ -301,10 +355,11 @@ interface ChannelCardProps {
   onDisconnect: () => void;
   onSync?: () => void;
   isSyncing?: boolean;
+  onChangeBrand?: () => void;
 }
 
 function ChannelCard({
-  conn, expanded, onToggleExpand, onConnect, onReauth, onDisconnect, onSync, isSyncing,
+  conn, expanded, onToggleExpand, onConnect, onReauth, onDisconnect, onSync, isSyncing, onChangeBrand,
 }: ChannelCardProps) {
   const ch = CHANNEL_META[conn.ch];
   const available = conn.status === "available";
@@ -460,6 +515,15 @@ function ChannelCard({
                   size={15}
                   className={isSyncing ? "animate-spin" : undefined}
                 />
+              </button>
+            )}
+            {onChangeBrand && (
+              <button
+                onClick={onChangeBrand}
+                title="Cambiar marca"
+                className="fobo-btn fobo-btn-secondary fobo-btn-sm px-3"
+              >
+                <Icon name="edit" size={15} />
               </button>
             )}
             <button

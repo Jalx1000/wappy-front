@@ -52,6 +52,7 @@ function mapBackendBrand(b: BackendBrand, idx: number): Brand {
 type BackendChannel =
   | "facebook_page"
   | "instagram"
+  | "instagram_login"
   | "tiktok"
   | "tiktok_ads"
   | "linkedin"
@@ -86,6 +87,7 @@ type BackendConnection = {
 const CHANNEL_BACKEND_TO_UI: Record<BackendChannel, string> = {
   facebook_page: "facebook",
   instagram: "instagram",
+  instagram_login: "instagramlogin",
   tiktok: "tiktok",
   tiktok_ads: "tiktokads",
   linkedin: "linkedin",
@@ -99,6 +101,7 @@ const CHANNEL_BACKEND_TO_UI: Record<BackendChannel, string> = {
 const CHANNEL_UI_TO_BACKEND: Record<string, BackendChannel> = {
   facebook: "facebook_page",
   instagram: "instagram",
+  instagramlogin: "instagram_login",
   tiktok: "tiktok",
   tiktokads: "tiktok_ads",
   linkedin: "linkedin",
@@ -243,8 +246,71 @@ export const brandsApi = {
       `/connections/${connectionId}/sync-jobs/${encodeURIComponent(jobId)}${queue ? `?queue=${queue}` : ""}`,
     ),
 
+  reassignConnectionBrand: async (connectionId: number, brandId: number) => {
+    const updated = await api.patch<BackendConnection>(
+      `/connections/${connectionId}/brand`,
+      { brandId },
+    );
+    return mapBackendConnection(updated);
+  },
+
   getDashboard: (brandId: string) =>
     api.get<{ kpis: unknown[]; alerts: unknown[] }>(
       `/brands/${brandId}/dashboard`,
     ),
+};
+
+// ── OAuth discovery + orphans ────────────────────────────────────────────────
+export type DiscoveryAccount = {
+  channel: BackendChannel;
+  accountId: string;
+  accountHandle: string;
+  scopes: string[];
+  metadata: Record<string, unknown>;
+};
+
+export type Discovery = {
+  id: number;
+  channel: string;
+  triggeredBrandId: number | null;
+  expiresAt: string;
+  accounts: DiscoveryAccount[];
+};
+
+export type Orphan = {
+  id: number;
+  channel: BackendChannel;
+  accountId: string;
+  accountHandle: string;
+  scopes: string[];
+  metadata: Record<string, unknown>;
+  discoveredByUserId: number;
+  discoveredAt: string;
+};
+
+export type DiscoveryAssignment = {
+  accountId: string;
+  brandId: number | null;
+};
+
+export const discoveriesApi = {
+  get: (id: number) => api.get<Discovery>(`/oauth-discoveries/${id}`),
+
+  assign: (id: number, assignments: DiscoveryAssignment[]) =>
+    api.post<{ connectionsCreated: number; orphansCreated: number }>(
+      `/oauth-discoveries/${id}/assign`,
+      { assignments },
+    ),
+};
+
+export const orphansApi = {
+  list: () => api.get<Orphan[]>(`/orphan-accounts`),
+
+  assign: (orphanId: number, brandId: number) =>
+    api.post<BackendConnection>(`/orphan-accounts/${orphanId}/assign`, {
+      brandId,
+    }),
+
+  discard: (orphanId: number) =>
+    api.delete<void>(`/orphan-accounts/${orphanId}`),
 };

@@ -1,5 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { brandsApi, type CreateBrandDto, type UpdateBrandDto } from "@/lib/api/brands";
+import {
+  brandsApi,
+  discoveriesApi,
+  orphansApi,
+  type CreateBrandDto,
+  type UpdateBrandDto,
+  type Discovery,
+  type DiscoveryAssignment,
+  type Orphan,
+} from "@/lib/api/brands";
 import {
   authApi,
   type AuthMe,
@@ -355,6 +364,82 @@ export function useUpdateConnectionMutation(brandId: string | undefined) {
     mutationFn: ({ id, accessToken }: { id: number; accessToken: string }) =>
       brandsApi.updateConnection(id, { accessToken }),
     onSettled: () => qc.invalidateQueries({ queryKey: ["connections", brandId] }),
+  });
+}
+
+export function useReassignConnectionBrand() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, brandId }: { id: number; brandId: number }) =>
+      brandsApi.reassignConnectionBrand(id, brandId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["connections"] });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+    },
+  });
+}
+
+// ── OAuth discovery + orphans ────────────────────────────────────────────────
+export function useDiscovery(id: number | null | undefined) {
+  return useQuery<Discovery>({
+    queryKey: ["discovery", id],
+    queryFn: () => discoveriesApi.get(id as number),
+    enabled: typeof id === "number",
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useAssignDiscovery() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      assignments,
+    }: {
+      id: number;
+      assignments: DiscoveryAssignment[];
+    }) => discoveriesApi.assign(id, assignments),
+    onSettled: (_, __, vars) => {
+      qc.invalidateQueries({ queryKey: ["discovery", vars?.id] });
+      qc.invalidateQueries({ queryKey: ["connections"] });
+      qc.invalidateQueries({ queryKey: ["orphans"] });
+    },
+  });
+}
+
+export function useOrphans() {
+  return useQuery<Orphan[]>({
+    queryKey: ["orphans"],
+    queryFn: () => orphansApi.list(),
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useAssignOrphan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      orphanId,
+      brandId,
+    }: {
+      orphanId: number;
+      brandId: number;
+    }) => orphansApi.assign(orphanId, brandId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["orphans"] });
+      qc.invalidateQueries({ queryKey: ["connections"] });
+    },
+  });
+}
+
+export function useDiscardOrphan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orphanId: number) => orphansApi.discard(orphanId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["orphans"] });
+    },
   });
 }
 

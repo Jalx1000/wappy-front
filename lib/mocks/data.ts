@@ -75,7 +75,8 @@ export const ALERTS = [
 // ── Channel metadata ──────────────────────────────────────────────────────────
 export const CHANNEL_META: Record<string, { label: string; color: string; letter: string; cat: string; scopes: string[] }> = {
   facebook:  { label: "Facebook",           color: "#1877F2", letter: "f",  cat: "social",    scopes: ["Páginas", "Insights", "Publicaciones", "Comentarios"] },
-  instagram: { label: "Instagram",          color: "#E1306C", letter: "◎",  cat: "social",    scopes: ["Perfil business", "Insights", "Media", "Mensajes"] },
+  instagram: { label: "Instagram (via Facebook)", color: "#E1306C", letter: "◎",  cat: "social",    scopes: ["Perfil business", "Insights", "Media", "Mensajes"] },
+  instagramlogin: { label: "Instagram (login directo)", color: "#E1306C", letter: "◉",  cat: "social",    scopes: ["Perfil", "Insights", "Publicar", "Mensajes", "Comentarios"] },
   tiktok:    { label: "TikTok",             color: "#010101", letter: "♪",  cat: "social",    scopes: ["Perfil", "Videos", "Analítica", "Comentarios"] },
   linkedin:  { label: "LinkedIn",           color: "#0A66C2", letter: "in", cat: "social",    scopes: ["Company Page", "Analítica", "Publicaciones"] },
   youtube:   { label: "YouTube",            color: "#FF0000", letter: "▶",  cat: "social",    scopes: ["Canal", "Videos", "YouTube Analytics"] },
