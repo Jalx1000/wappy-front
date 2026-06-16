@@ -13,9 +13,11 @@ import {
   useSocialAnalytics,
   useBrands,
   useConnections,
+  useSyncConnectionMutation,
 } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
 
 const CHANNEL_UI_TO_BACKEND: Record<string, string> = {
   facebook: "facebook_page",
@@ -89,6 +91,15 @@ export function SocialAnalytics() {
     backendChannel,
     days,
   );
+  const toast = useToast();
+  const syncMutation = useSyncConnectionMutation(brand?.id);
+  const handleSync = () => {
+    if (activePage?.id === undefined) return;
+    syncMutation.mutate(activePage.id, {
+      onSuccess: () => toast("Cuenta sincronizada", "info"),
+      onError: () => toast("No se pudo sincronizar la cuenta", "info"),
+    });
+  };
 
   const kpis      = data?.kpis     ?? [];
   const trend     = data?.trend     ?? { reach: [], labels: [] };
@@ -164,6 +175,14 @@ export function SocialAnalytics() {
             </select>
           )}
           <Segmented options={RANGE_OPTS} value={range} onChange={setRange} />
+          <button
+            onClick={handleSync}
+            disabled={syncMutation.isPending}
+            className="fobo-btn fobo-btn-secondary fobo-btn-sm"
+            title="Sincronizar esta cuenta (90 días)"
+          >
+            {syncMutation.isPending ? "Sincronizando…" : "Sincronizar"}
+          </button>
         </div>
       </div>
 
