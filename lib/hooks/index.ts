@@ -22,7 +22,7 @@ import {
 import { filesApi } from "@/lib/api/files";
 import { api } from "@/lib/api/client";
 import { useUIStore } from "@/store/ui";
-import { analyticsApi } from "@/lib/api/analytics";
+import { analyticsApi, type WebCountryRow } from "@/lib/api/analytics";
 import { contentApi } from "@/lib/api/content";
 import { inboxApi } from "@/lib/api/inbox";
 import { requestsApi, type RequestItem } from "@/lib/api/requests";
@@ -628,13 +628,15 @@ function formatWebKpiValue(label: string, value: number): string {
 export function useWebAnalytics(
   brandId: string | undefined,
   range: string = "30d",
-  city?: string,
+  opts?: { city?: string; connectionId?: number },
 ) {
+  const city = opts?.city;
+  const connectionId = opts?.connectionId;
   return useQuery<WebAnalyticsData>({
-    queryKey: ["analytics", "web", brandId, range, city ?? null],
+    queryKey: ["analytics", "web", brandId, range, city ?? null, connectionId ?? null],
     queryFn: async () => {
       const { from, to } = rangeToDates(range);
-      const res = await analyticsApi.webOverview(from, to, city);
+      const res = await analyticsApi.webOverview(from, to, { city, connectionId });
       return {
         kpis: res.kpis.map((k) => ({
           label: k.label,
@@ -662,16 +664,47 @@ export function useWebAnalytics(
 export function useWebCities(
   brandId: string | undefined,
   range: string = "30d",
+  connectionId?: number,
 ) {
   return useQuery<string[]>({
-    queryKey: ["analytics", "web-cities", brandId, range],
+    queryKey: ["analytics", "web-cities", brandId, range, connectionId ?? null],
     queryFn: async () => {
       const { from, to } = rangeToDates(range);
-      return analyticsApi.webCities(from, to);
+      return analyticsApi.webCities(from, to, connectionId);
     },
     enabled: !!brandId,
     retry: false,
   });
+}
+
+export function useWebCountries(
+  brandId: string | undefined,
+  range: string = "30d",
+  connectionId?: number,
+) {
+  return useQuery<WebCountryRow[]>({
+    queryKey: ["analytics", "web-countries", brandId, range, connectionId ?? null],
+    queryFn: async () => {
+      const { from, to } = rangeToDates(range);
+      return analyticsApi.webCountries(from, to, connectionId);
+    },
+    enabled: !!brandId,
+    retry: false,
+  });
+}
+
+// GA4 properties available for the active brand. One GA4 connection exists per
+// property the connected Google account can access (see backend ga4-oauth).
+export function useGa4Properties(brandId: string | undefined) {
+  const { data: conns = [] } = useConnections(brandId);
+  return conns
+    .filter(
+      (c) => c.ch === "ga4" && c.status === "connected" && typeof c.id === "number",
+    )
+    .map((c) => ({
+      connectionId: c.id as number,
+      label: c.account || `GA4 ${c.id}`,
+    }));
 }
 
 // ── Mock-only modules (no backend yet — UI uses static mocks) ────────────────

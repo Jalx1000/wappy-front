@@ -14,9 +14,18 @@ import { HBars } from "@/components/ui/HBars";
 import { DonutChart } from "@/components/ui/DonutChart";
 import { Icon } from "@/components/ui/Icon";
 import { useUIStore } from "@/store/ui";
-import { useWebAnalytics, useWebCities, useBrands } from "@/lib/hooks";
+import {
+  useWebAnalytics,
+  useWebCities,
+  useWebCountries,
+  useGa4Properties,
+  useSyncConnectionMutation,
+  useBrands,
+} from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { useToast } from "@/components/ui/Toast";
+import { WorldHeatMap, type CountryMetric } from "@/components/analytics/WorldHeatMap";
 
 const RANGE_OPTS = [{ v: "7d", l: "7 días" }, { v: "30d", l: "30 días" }, { v: "90d", l: "90 días" }];
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
@@ -83,15 +92,36 @@ function WebSkeleton() {
 export function WebGA4() {
   const [range, setRange] = useState("30d");
   const [city, setCity] = useState<string>("");
+  const [connId, setConnId] = useState<number | undefined>(undefined);
+  const [mapMetric, setMapMetric] = useState<CountryMetric>("sessions");
+  const toast = useToast();
   const { activeBrand } = useUIStore();
   const { data: brands = BRANDS_FALLBACK } = useBrands();
   const brand = activeBrand ?? brands[0];
-  const { data, isPending, isError, error } = useWebAnalytics(
+
+  const properties = useGa4Properties(brand?.id);
+  const effectiveConnId = connId ?? properties[0]?.connectionId;
+
+  const { data, isPending, isError, error } = useWebAnalytics(brand?.id, range, {
+    city: city || undefined,
+    connectionId: effectiveConnId,
+  });
+  const { data: cities = [] } = useWebCities(brand?.id, range, effectiveConnId);
+  const { data: countries = [] } = useWebCountries(
     brand?.id,
     range,
-    city || undefined,
+    effectiveConnId,
   );
-  const { data: cities = [] } = useWebCities(brand?.id, range);
+  const syncMutation = useSyncConnectionMutation(brand?.id);
+
+  const handleSync = () => {
+    if (!effectiveConnId) return;
+    syncMutation.mutate(effectiveConnId, {
+      onSuccess: () =>
+        toast("Sincronización encolada para esta propiedad…", "info"),
+      onError: () => toast("No se pudo sincronizar la propiedad", "info"),
+    });
+  };
 
   if (isPending) return <WebSkeleton />;
 
@@ -153,6 +183,33 @@ export function WebGA4() {
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
+          {properties.length > 0 && (
+            <select
+              value={effectiveConnId ?? ""}
+              onChange={(e) =>
+                setConnId(e.target.value ? Number(e.target.value) : undefined)
+              }
+              className="fobo-btn fobo-btn-secondary fobo-btn-sm"
+              style={{ minWidth: 180 }}
+              title="Propiedad GA4"
+            >
+              {properties.map((p) => (
+                <option key={p.connectionId} value={p.connectionId}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {effectiveConnId !== undefined && (
+            <button
+              onClick={handleSync}
+              disabled={syncMutation.isPending}
+              className="fobo-btn fobo-btn-secondary fobo-btn-sm"
+              title="Sincronizar esta propiedad"
+            >
+              {syncMutation.isPending ? "Sincronizando…" : "Sincronizar"}
+            </button>
+          )}
           {cities.length > 0 && (
             <select
               value={city}
@@ -314,6 +371,33 @@ export function WebGA4() {
           </Panel>
         </motion.div>
       </div>
+
+      {/* World heat map */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.44 }}
+        className="mt-4"
+      >
+        <Panel
+          title="Mapa de calor por país"
+          sub="Distribución geográfica del tráfico"
+          pad="18px 20px 16px"
+        >
+          <div className="flex justify-end mb-3">
+            <Segmented
+              options={[
+                { v: "sessions", l: "Sesiones" },
+                { v: "users", l: "Usuarios" },
+                { v: "conversions", l: "Conversiones" },
+              ]}
+              value={mapMetric}
+              onChange={(v) => setMapMetric(v as CountryMetric)}
+            />
+          </div>
+          <WorldHeatMap data={countries} metric={mapMetric} />
+        </Panel>
+      </motion.div>
     </div>
   );
 }

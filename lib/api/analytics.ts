@@ -65,6 +65,13 @@ export type WebKpi = {
   spark: number[];
 };
 
+export type WebCountryRow = {
+  country: string;
+  sessions: number;
+  users: number;
+  conversions: number;
+};
+
 export type WebOverviewResponse = {
   brandId: number;
   connectionId: number;
@@ -96,13 +103,29 @@ export const analyticsApi = {
       `/analytics/social/top-posts${qs({ connectionId, limit })}`,
     ),
 
-  webOverview: (from: string, to: string, city?: string) =>
+  webOverview: (
+    from: string,
+    to: string,
+    opts?: { city?: string; connectionId?: number },
+  ) =>
     api.get<WebOverviewResponse>(
-      `/analytics/web/overview${qs({ from, to, city })}`,
+      `/analytics/web/overview${qs({
+        from,
+        to,
+        city: opts?.city,
+        connectionId: opts?.connectionId,
+      })}`,
     ),
 
-  webCities: (from: string, to: string) =>
-    api.get<string[]>(`/analytics/web/cities${qs({ from, to })}`),
+  webCities: (from: string, to: string, connectionId?: number) =>
+    api.get<string[]>(
+      `/analytics/web/cities${qs({ from, to, connectionId })}`,
+    ),
+
+  webCountries: (from: string, to: string, connectionId?: number) =>
+    api.get<WebCountryRow[]>(
+      `/analytics/web/countries${qs({ from, to, connectionId })}`,
+    ),
 
   adsOverview: (from: string, to: string) =>
     api.get<AdsOverviewResponse>(
