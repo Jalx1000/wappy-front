@@ -519,11 +519,14 @@ export function useSocialAnalytics(
       const from = isoBack(days);
       const to = isoBack(0);
 
-      // Summary is brand-scoped (no connectionId needed).
-      const summaryP = analyticsApi.socialSummary(from, to);
-
-      // Overview + topPosts require a connectionId. If none, fall back to mocks.
+      // All views are per-connection (one page/account at a time).
       const haveConn = typeof connectionId === "number";
+      const summaryP = analyticsApi.socialSummary(
+        from,
+        to,
+        haveConn ? connectionId : undefined,
+      );
+
       const overviewP = haveConn
         ? analyticsApi.socialOverview(connectionId!, from, to)
         : Promise.resolve(null);
@@ -547,14 +550,12 @@ export function useSocialAnalytics(
         { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: 0, spark: [] },
       ];
 
-      // Trend from overview.series.reach
+      // Trend from overview.series.reach (real, per-connection — no mock fallback)
       const reachSeries = overview?.series.reach ?? [];
-      const trend = reachSeries.length
-        ? {
-            reach: reachSeries.map((p) => p.value),
-            labels: buildLabels(reachSeries),
-          }
-        : SA_TREND;
+      const trend = {
+        reach: reachSeries.map((p) => p.value),
+        labels: buildLabels(reachSeries),
+      };
 
       // Top posts from backend or topPosts response
       const rawPosts =
@@ -582,20 +583,11 @@ export function useSocialAnalytics(
       return {
         kpis,
         trend,
-        networks: SA_NETWORKS,
-        audience: { age: SA_AUDIENCE_AGE, gender: SA_GENDER, geo: SA_GEO },
-        topPosts: mappedPosts.length ? mappedPosts : TOP_POSTS,
+        networks: [],
+        audience: { age: [], gender: [], geo: [] },
+        topPosts: mappedPosts,
       } as SocialAnalyticsData;
     },
-    placeholderData: IS_MOCKS
-      ? {
-          kpis: SA_KPIS,
-          trend: SA_TREND,
-          networks: SA_NETWORKS,
-          audience: { age: SA_AUDIENCE_AGE, gender: SA_GENDER, geo: SA_GEO },
-          topPosts: TOP_POSTS,
-        }
-      : undefined,
   });
 }
 

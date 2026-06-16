@@ -88,9 +88,9 @@ export type WebOverviewResponse = {
 };
 
 export const analyticsApi = {
-  socialSummary: (from: string, to: string) =>
+  socialSummary: (from: string, to: string, connectionId?: number) =>
     api.get<SocialSummaryResponse>(
-      `/analytics/social/summary${qs({ from, to })}`,
+      `/analytics/social/summary${qs({ from, to, connectionId })}`,
     ),
 
   socialOverview: (connectionId: number, from: string, to: string) =>
