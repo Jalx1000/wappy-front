@@ -118,8 +118,7 @@ export function WebGA4() {
   const handleSync = () => {
     if (!effectiveConnId) return;
     syncMutation.mutate(effectiveConnId, {
-      onSuccess: () =>
-        toast("Sincronización encolada para esta propiedad…", "info"),
+      onSuccess: () => toast("Propiedad sincronizada", "info"),
       onError: () => toast("No se pudo sincronizar la propiedad", "info"),
     });
   };

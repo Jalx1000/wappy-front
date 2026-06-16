@@ -353,8 +353,32 @@ export function useDisconnectMutation(brandId: string | undefined) {
 export function useSyncConnectionMutation(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => brandsApi.syncConnection(id),
-    onSettled: () => qc.invalidateQueries({ queryKey: ["connections", brandId] }),
+    // Enqueue the sync, then poll the job(s) until they finish so the mutation
+    // stays "pending" (spinner) for the real duration and the analytics cards
+    // refetch fresh data on settle — instead of appearing to do nothing.
+    mutationFn: async (id: number) => {
+      const { jobIds } = await brandsApi.syncConnection(id);
+      const queueOf = (jid: string): "web" | "ads" | "social" =>
+        jid.startsWith("web") ? "web" : jid.startsWith("ads") ? "ads" : "social";
+      const pending = jobIds.filter((j): j is string => typeof j === "string");
+      const deadline = Date.now() + 60_000;
+      while (pending.length && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2500));
+        for (let i = pending.length - 1; i >= 0; i--) {
+          const st = await brandsApi
+            .getSyncJob(id, pending[i], queueOf(pending[i]))
+            .catch(() => null);
+          if (!st || st.state === "completed" || st.state === "failed") {
+            pending.splice(i, 1);
+          }
+        }
+      }
+      return jobIds;
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["connections", brandId] });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+    },
   });
 }
 
