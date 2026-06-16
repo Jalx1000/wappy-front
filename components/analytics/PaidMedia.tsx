@@ -14,12 +14,11 @@ import { useAdsAnalytics, useBrands } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK, CHANNEL_META } from "@/lib/mocks/data";
 import type { BadgeVariant } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { DateRangeInputs } from "@/components/ui/DateRangeInputs";
 
 const RANGE_OPTS = [{ v: "7d", l: "7 días" }, { v: "30d", l: "30 días" }, { v: "90d", l: "90 días" }];
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
 const fadeUp  = { hidden: { opacity: 0, y: 10 }, show: { opacity: 1, y: 0, transition: { duration: 0.25 } } };
-
-const SPEND_LABELS = ["1","2","3","4","5","6","7","8","9","10","11","12"];
 
 function AdsSkeleton() {
   return (
@@ -78,6 +77,7 @@ export function PaidMedia() {
   const platforms = data?.platforms  ?? [];
   const campaigns = data?.campaigns  ?? [];
   const spendTrend = data?.spendTrend ?? [];
+  const spendTrendLabels = data?.spendTrendLabels ?? [];
 
   return (
     <div className="p-7 overflow-y-auto h-full max-w-[1440px]">
@@ -96,8 +96,9 @@ export function PaidMedia() {
             Inversión publicitaria de <strong style={{ color: "var(--color-text-primary)" }}>{brand.name}</strong>
           </p>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2 flex-wrap justify-end">
           <Segmented options={RANGE_OPTS} value={range} onChange={setRange} />
+          <DateRangeInputs value={range} onChange={setRange} />
         </div>
       </div>
 
@@ -126,8 +127,8 @@ export function PaidMedia() {
       {/* Spend chart + platforms */}
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1.4fr 1fr" }}>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
-          <Panel title="Inversión diaria" sub="USD por día · últimos 12 días" pad="18px 20px 14px">
-            <BarChart data={spendTrend} labels={SPEND_LABELS} height={180} />
+          <Panel title="Inversión diaria" sub="USD por día" pad="18px 20px 14px">
+            <BarChart data={spendTrend} labels={spendTrendLabels} height={180} />
           </Panel>
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>

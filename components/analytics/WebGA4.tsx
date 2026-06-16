@@ -26,6 +26,7 @@ import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { WorldHeatMap, type CountryMetric } from "@/components/analytics/WorldHeatMap";
+import { DateRangeInputs } from "@/components/ui/DateRangeInputs";
 
 const RANGE_OPTS = [{ v: "7d", l: "7 días" }, { v: "30d", l: "30 días" }, { v: "90d", l: "90 días" }];
 const stagger = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } };
@@ -64,8 +65,8 @@ function DualAreaChart({ current, previous, labels }: {
         </defs>
         <CartesianGrid vertical={false} stroke={grid} strokeDasharray="3 3" />
         <XAxis dataKey="label" tick={{ fontSize: 11, fill: axis, fontFamily: "Inter,sans-serif" }} tickLine={false} axisLine={false} />
-        <YAxis tickFormatter={(v) => `${v}K`} tick={{ fontSize: 11, fill: axis, fontFamily: "Inter,sans-serif" }} tickLine={false} axisLine={false} width={40} />
-        <Tooltip contentStyle={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 10, fontSize: 12, padding: "7px 12px" }} formatter={(v) => [`${typeof v === "number" ? v : 0}K sesiones`, ""]} />
+        <YAxis tickFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : `${v}`)} tick={{ fontSize: 11, fill: axis, fontFamily: "Inter,sans-serif" }} tickLine={false} axisLine={false} width={40} />
+        <Tooltip contentStyle={{ background: bg, border: `1px solid ${bdr}`, borderRadius: 10, fontSize: 12, padding: "7px 12px" }} formatter={(v) => [`${typeof v === "number" ? v.toLocaleString("es-BO") : 0} sesiones`, ""]} />
         <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 12, color: axis }} />
         <Area type="monotone" dataKey="este" name="Este período" stroke="#0D5CA6" strokeWidth={2.5} fill="url(#gEste)" dot={false} activeDot={{ r: 4, fill: "#0D5CA6", strokeWidth: 0 }} />
         <Area type="monotone" dataKey="prev" name="Período anterior" stroke="#34BDF6" strokeWidth={1.5} fill="url(#gPrev)" dot={false} strokeDasharray="4 3" activeDot={{ r: 3, fill: "#34BDF6", strokeWidth: 0 }} />
@@ -165,6 +166,13 @@ export function WebGA4() {
   const devices = data?.devices ?? [];
   const funnel  = data?.funnel  ?? [];
 
+  const topDevice = devices.length
+    ? devices.reduce((a, b) => (b.value > a.value ? b : a))
+    : null;
+  const deviceCenter: [string, string] = topDevice
+    ? [`${topDevice.value}%`, topDevice.label]
+    : ["—", ""];
+
   return (
     <div className="p-7 overflow-y-auto h-full max-w-[1440px]">
       {/* Header */}
@@ -226,6 +234,7 @@ export function WebGA4() {
             </select>
           )}
           <Segmented options={RANGE_OPTS} value={range} onChange={setRange} />
+          <DateRangeInputs value={range} onChange={setRange} />
         </div>
       </div>
 
@@ -255,7 +264,7 @@ export function WebGA4() {
       {/* Sessions + sources */}
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "1.7fr 1fr" }}>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
-          <Panel title="Sesiones" sub="Miles por día · comparativa período anterior" pad="18px 20px 14px">
+          <Panel title="Sesiones" sub="Sesiones por día · comparativa período anterior" pad="18px 20px 14px">
             <DualAreaChart current={sessions.current} previous={sessions.previous} labels={sessions.labels} />
           </Panel>
         </motion.div>
@@ -275,11 +284,11 @@ export function WebGA4() {
               <div
                 className="grid gap-3 px-5 py-3"
                 style={{
-                  gridTemplateColumns: "2.4fr 1fr 1fr",
+                  gridTemplateColumns: "2.4fr 1fr",
                   borderBottom: "1px solid var(--color-border)",
                 }}
               >
-                {["Página", "Vistas", "T. medio"].map((h, i) => (
+                {["Página", "Vistas"].map((h, i) => (
                   <div
                     key={h}
                     className="text-[10.5px] font-bold uppercase"
@@ -298,7 +307,7 @@ export function WebGA4() {
                   key={p.path}
                   className="grid gap-3 px-5 py-3 items-center"
                   style={{
-                    gridTemplateColumns: "2.4fr 1fr 1fr",
+                    gridTemplateColumns: "2.4fr 1fr",
                     borderBottom: i < pages.length - 1 ? "1px solid var(--color-border)" : "none",
                   }}
                 >
@@ -310,9 +319,6 @@ export function WebGA4() {
                   </div>
                   <div className="text-right text-[13.5px] font-semibold tnum" style={{ color: "var(--color-text-primary)" }}>
                     {p.views}
-                  </div>
-                  <div className="text-right text-[13.5px] tnum" style={{ color: "var(--color-text-secondary)" }}>
-                    {p.time}
                   </div>
                 </div>
               ))}
@@ -367,7 +373,7 @@ export function WebGA4() {
         {/* Devices */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
           <Panel title="Dispositivos" pad="20px">
-            <DonutChart segments={devices} size={140} center={["71%", "móvil"]} />
+            <DonutChart segments={devices} size={140} center={deviceCenter} />
           </Panel>
         </motion.div>
       </div>

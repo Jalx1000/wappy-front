@@ -80,7 +80,7 @@ export type WebOverviewResponse = {
   kpis: WebKpi[];
   sessions: { current: number[]; previous: number[]; labels: string[] };
   sources: { name: string; sessions: number }[];
-  pages: { path: string; views: number; time: string }[];
+  pages: { path: string; views: number }[];
   devices: { name: string; value: number }[];
   funnel: { label: string; count: number; pct: number }[];
   stale: boolean;
@@ -172,6 +172,7 @@ export type AdsOverviewResponse = {
   kpis: AdsKpi[];
   platforms: AdsPlatform[];
   spendTrend: number[];
+  spendTrendLabels: string[];
   stale: boolean;
   lastSyncAt: string | null;
 };

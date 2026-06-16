@@ -580,7 +580,13 @@ export function useAdsAnalytics(
   brandId: string | undefined,
   range: string = "30d",
 ) {
-  return useQuery<AdsAnalyticsData & { stale?: boolean; lastSyncAt?: string | null }>({
+  return useQuery<
+    AdsAnalyticsData & {
+      stale?: boolean;
+      lastSyncAt?: string | null;
+      spendTrendLabels: string[];
+    }
+  >({
     queryKey: ["analytics", "ads", brandId, range],
     queryFn: async () => {
       const { from, to } = rangeToDates(range);
@@ -592,9 +598,8 @@ export function useAdsAnalytics(
         kpis: overview.kpis as unknown as AdsKpi[],
         platforms: overview.platforms as unknown as typeof ADS_PLATFORMS,
         campaigns: campaigns.campaigns as unknown as typeof ADS_CAMPAIGNS,
-        spendTrend: overview.spendTrend.length
-          ? overview.spendTrend
-          : ADS_SPEND_TREND,
+        spendTrend: overview.spendTrend,
+        spendTrendLabels: overview.spendTrendLabels,
         stale: overview.stale,
         lastSyncAt: overview.lastSyncAt,
       };
@@ -606,8 +611,15 @@ export function useAdsAnalytics(
 
 // ── Analytics — Web / GA4 (real backend) ─────────────────────────────────────
 const WEB_RANGE_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
+const WEB_DEVICE_LABELS: Record<string, string> = { mobile: "Móvil", desktop: "Escritorio", tablet: "Tablet" };
+const WEB_DEVICE_COLORS: Record<string, string> = { mobile: "#0D5CA6", desktop: "#34BDF6", tablet: "#8B5CF6" };
 
 function rangeToDates(range: string): { from: string; to: string } {
+  // Custom range encoded as "custom:YYYY-MM-DD:YYYY-MM-DD"
+  if (range.startsWith("custom:")) {
+    const [, from, to] = range.split(":");
+    if (from && to) return { from, to };
+  }
   const days = WEB_RANGE_DAYS[range] ?? 30;
   const to = new Date();
   const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000);
@@ -637,6 +649,7 @@ export function useWebAnalytics(
     queryFn: async () => {
       const { from, to } = rangeToDates(range);
       const res = await analyticsApi.webOverview(from, to, { city, connectionId });
+      const maxSrc = Math.max(1, ...res.sources.map((s) => s.sessions));
       return {
         kpis: res.kpis.map((k) => ({
           label: k.label,
@@ -647,9 +660,17 @@ export function useWebAnalytics(
             : [0, 0, 0, 0, 0, 0, 0],
         })) as unknown as WebKpi[],
         sessions: res.sessions,
-        sources: res.sources as unknown as typeof WEB_SOURCES,
+        sources: res.sources.map((s) => ({
+          label: s.name,
+          value: s.sessions,
+          pct: Math.round((s.sessions / maxSrc) * 100),
+        })) as unknown as typeof WEB_SOURCES,
         pages: res.pages as unknown as typeof WEB_PAGES,
-        devices: res.devices as unknown as typeof WEB_DEVICES,
+        devices: res.devices.map((d) => ({
+          label: WEB_DEVICE_LABELS[d.name?.toLowerCase()] ?? d.name,
+          value: d.value,
+          color: WEB_DEVICE_COLORS[d.name?.toLowerCase()] ?? "#94A3B8",
+        })) as unknown as typeof WEB_DEVICES,
         funnel: res.funnel as unknown as typeof WEB_FUNNEL,
         stale: res.stale,
         lastSyncAt: res.lastSyncAt,
