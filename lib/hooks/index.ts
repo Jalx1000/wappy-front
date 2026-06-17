@@ -57,6 +57,18 @@ type SaKpi       = typeof SA_KPIS[number];
 type AdsKpi      = typeof ADS_KPIS[number];
 type WebKpi      = typeof WEB_KPIS[number];
 
+export type SaPost = {
+  ch: string;
+  caption: string;
+  mediaUrl?: string | null;
+  reach: string;
+  eng: string;
+  likes: string;
+  comments?: string;
+  saves?: string;
+  date: string;
+};
+
 export type SocialAnalyticsData = {
   kpis: SaKpi[];
   trend: typeof SA_TREND;
@@ -66,7 +78,7 @@ export type SocialAnalyticsData = {
     gender: typeof SA_GENDER;
     geo: typeof SA_GEO;
   };
-  topPosts: typeof TOP_POSTS;
+  topPosts: SaPost[];
 };
 
 export type AdsAnalyticsData = {
@@ -573,9 +585,12 @@ export function useSocialAnalytics(
         return {
           ch: channelLabel,
           caption: p.caption ?? "—",
+          mediaUrl: p.mediaUrl ?? null,
           reach: fmtCompact(reach),
           eng: engRate.toFixed(1) + "%",
           likes: fmtCompact(p.metrics?.likes ?? 0),
+          comments: fmtCompact(p.metrics?.comments ?? 0),
+          saves: fmtCompact(p.metrics?.saves ?? 0),
           date: fmtShortDate(p.publishedAt),
         };
       });

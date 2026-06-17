@@ -26,6 +26,9 @@ export type SocialTopPost = {
     shares: number;
     comments: number;
     engagement: number;
+    saves?: number;
+    video_views?: number;
+    clicks?: number;
   };
 };
 

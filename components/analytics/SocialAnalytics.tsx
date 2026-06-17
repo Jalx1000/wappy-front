@@ -238,7 +238,17 @@ export function SocialAnalytics() {
                 onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.boxShadow = "none")}
               >
                 <div className="relative">
-                  <ImagePlaceholder height={140} label={`post · ${p.ch}`} />
+                  {p.mediaUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={p.mediaUrl}
+                      alt={p.caption}
+                      style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
+                      onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
+                    />
+                  ) : (
+                    <ImagePlaceholder height={140} label={`post · ${p.ch}`} />
+                  )}
                   <span className="absolute top-2 left-2">
                     <ChannelDot channel={p.ch} size={26} radius={7} />
                   </span>
