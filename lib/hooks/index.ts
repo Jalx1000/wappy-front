@@ -553,10 +553,13 @@ export function useSocialAnalytics(
       ]);
 
       // KPIs from summary — defensive: backend may return undefined when brand has no connections
-      const k = summary.kpis ?? ({} as Partial<typeof summary.kpis>);
-      const engRate = typeof k.engagement_rate === "number" ? k.engagement_rate / 100 : 0;
+      const k = (summary.kpis ?? {}) as Record<string, number>;
+      const reachVal = k.reach ?? 0;
+      const interactions = k.engagement ?? k.total_interactions ?? 0;
+      // Engagement rate = interactions / reach (backend sends raw counts).
+      const engRate = reachVal > 0 ? (interactions / reachVal) * 100 : 0;
       const kpis: SaKpi[] = [
-        { label: "Alcance", value: fmtCompact(k.reach ?? 0), delta: 0, spark: [] },
+        { label: "Alcance", value: fmtCompact(reachVal), delta: 0, spark: [] },
         { label: "Impresiones", value: fmtCompact(k.impressions ?? 0), delta: 0, spark: [] },
         { label: "Engagement", value: engRate.toFixed(1) + "%", delta: 0, spark: [] },
         { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: 0, spark: [] },
