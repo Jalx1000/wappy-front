@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { FoboLogo } from "./FoboLogo";
 import { useUIStore } from "@/store/ui";
+import { useMe } from "@/lib/hooks";
 import { cn } from "@/lib/utils";
 import type { IconName } from "@/components/ui/Icon";
 
@@ -203,6 +204,15 @@ function SidebarUser({
   collapsed: boolean;
   onLogout?: () => void;
 }) {
+  const { data: me } = useMe();
+  const fullName =
+    [me?.firstName, me?.lastName].filter(Boolean).join(" ").trim() ||
+    me?.email ||
+    "Mi cuenta";
+  const roleName = me?.role?.name ?? "";
+  const initials =
+    ((me?.firstName?.[0] ?? "") + (me?.lastName?.[0] ?? "")).toUpperCase() ||
+    (me?.email?.[0] ?? "U").toUpperCase();
   return (
     <div
       className="flex items-center gap-[10px] px-[10px] py-2 rounded-[9px] cursor-pointer mt-1"
@@ -221,7 +231,7 @@ function SidebarUser({
           color: "var(--color-secondary-ink)",
         }}
       >
-        MR
+        {initials}
       </span>
       {!collapsed && (
         <>
@@ -230,11 +240,13 @@ function SidebarUser({
               className="text-[13px] font-semibold truncate"
               style={{ color: "var(--color-text-primary)" }}
             >
-              María Rojas
+              {fullName}
             </div>
-            <div className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Account Manager
-            </div>
+            {roleName && (
+              <div className="text-[11px] capitalize" style={{ color: "var(--color-text-tertiary)" }}>
+                {roleName}
+              </div>
+            )}
           </div>
           <button
             onClick={onLogout}

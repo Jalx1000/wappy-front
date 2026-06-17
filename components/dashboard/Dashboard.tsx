@@ -14,6 +14,7 @@ import {
   useDashboard,
   useDashboardSeries,
   useConnections,
+  useMe,
 } from "@/lib/hooks";
 import { CHANNEL_META } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -84,6 +85,9 @@ function DashboardSkeleton() {
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 export function Dashboard() {
   const { activeBrand } = useUIStore();
+  const { data: me } = useMe();
+  const firstName =
+    me?.firstName?.trim() || me?.email?.split("@")[0] || "";
   const { data: brands = BRANDS_FALLBACK } = useBrands();
   const brand = activeBrand ?? brands[0];
 
@@ -157,7 +161,7 @@ export function Dashboard() {
               color: "var(--color-text-primary)",
             }}
           >
-            Hola, María 👋
+            Hola{firstName ? `, ${firstName}` : ""} 👋
           </h1>
           <p className="text-[14px] mt-1" style={{ color: "var(--color-text-secondary)" }}>
             {new Date().toLocaleDateString("es-BO", { weekday: "long", day: "numeric", month: "long" })}{" "}
