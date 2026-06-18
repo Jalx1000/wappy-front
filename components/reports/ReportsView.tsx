@@ -8,9 +8,17 @@ import { Badge } from "@/components/ui/Badge";
 import type { BadgeVariant } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
-import { useReports, useCreateReport } from "@/lib/hooks";
+import {
+  useReports,
+  useCreateReport,
+  useReportSchedules,
+  useUpdateReportSchedule,
+  useDeleteReportSchedule,
+} from "@/lib/hooks";
 import { useUIStore } from "@/store/ui";
 import type { Report, ReportStatus } from "@/lib/api/reports";
+import type { ReportSchedule, ReportFrequency } from "@/lib/api/reportSchedules";
+import { ScheduleModal } from "./ScheduleModal";
 
 const STATUS_META: Record<ReportStatus, { label: string; variant: BadgeVariant }> = {
   ready: { label: "Listo", variant: "success" },
@@ -224,10 +232,84 @@ function reportSections(r: Report): string[] {
   return r.data?.sections ?? [];
 }
 
+const FREQ_LABEL: Record<ReportFrequency, string> = {
+  daily: "Diario",
+  weekdays: "Días hábiles",
+  weekly: "Semanal",
+  biweekly: "Quincenal",
+  monthly: "Mensual",
+  quarterly: "Trimestral",
+};
+const DOW_SHORT = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+function scheduleCadence(s: ReportSchedule): string {
+  const h = `${String(s.hour).padStart(2, "0")}:00`;
+  if (s.frequency === "weekly" || s.frequency === "biweekly")
+    return `${FREQ_LABEL[s.frequency]} · ${DOW_SHORT[s.dayOfWeek ?? 1]} ${h}`;
+  if (s.frequency === "monthly" || s.frequency === "quarterly")
+    return `${FREQ_LABEL[s.frequency]} · día ${s.dayOfMonth ?? 1} ${h}`;
+  return `${FREQ_LABEL[s.frequency]} · ${h}`;
+}
+
+function SchedulesPanel() {
+  const { data: schedules = [] } = useReportSchedules();
+  const updateSchedule = useUpdateReportSchedule();
+  const deleteSchedule = useDeleteReportSchedule();
+  const toast = useToast();
+
+  if (!schedules.length) return null;
+
+  return (
+    <div className="fobo-card overflow-hidden mb-6">
+      <div className="px-5 py-3 flex items-center gap-2" style={{ borderBottom: "1px solid var(--color-border)" }}>
+        <Icon name="calendar" size={15} style={{ color: "var(--color-primary-ink)" }} />
+        <span className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>Envíos programados</span>
+        <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>({schedules.length})</span>
+      </div>
+      {schedules.map((s, i) => {
+        const recipients = s.memberUserIds.length + s.extraEmails.length;
+        return (
+          <div key={s.id} className="grid gap-4 px-5 py-3 items-center" style={{ gridTemplateColumns: "1.6fr 1.4fr 1fr auto", borderBottom: i < schedules.length - 1 ? "1px solid var(--color-border)" : "none" }}>
+            <div>
+              <div className="text-[13.5px] font-semibold" style={{ color: "var(--color-text-primary)" }}>{scheduleCadence(s)}</div>
+              <div className="text-[11.5px] mt-[2px]" style={{ color: "var(--color-text-tertiary)" }}>{recipients} destinatario(s) · {s.sections.length} secciones</div>
+            </div>
+            <div className="text-[12.5px]" style={{ color: "var(--color-text-secondary)" }}>
+              {s.enabled && s.nextRunAt ? `Próximo: ${new Date(s.nextRunAt).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" })}` : "Pausado"}
+            </div>
+            <div className="flex justify-center">
+              <Badge variant={s.enabled ? "success" : "neutral"}>{s.enabled ? "Activo" : "Pausado"}</Badge>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                className="fobo-btn fobo-btn-ghost fobo-btn-sm"
+                title={s.enabled ? "Pausar" : "Activar"}
+                onClick={() => updateSchedule.mutate({ id: s.id, payload: { enabled: !s.enabled } })}
+              >
+                <Icon name={s.enabled ? "eyeOff" : "eye"} size={15} />
+              </button>
+              <button
+                className="fobo-btn fobo-btn-ghost fobo-btn-sm"
+                title="Eliminar"
+                onClick={() => {
+                  deleteSchedule.mutate(s.id, { onSuccess: () => toast("Programación eliminada") });
+                }}
+              >
+                <Icon name="trash" size={15} />
+              </button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ReportsView() {
   const router = useRouter();
   const { data: reports = [], isLoading } = useReports();
   const [wizard, setWizard] = useState(false);
+  const [schedule, setSchedule] = useState(false);
 
   const sorted = useMemo(
     () => [...reports].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
@@ -246,7 +328,7 @@ export function ReportsView() {
           </p>
         </div>
         <div className="ml-auto flex gap-2">
-          <button className="fobo-btn fobo-btn-secondary fobo-btn-sm flex items-center gap-1" disabled title="Próximamente">
+          <button className="fobo-btn fobo-btn-secondary fobo-btn-sm flex items-center gap-1" onClick={() => setSchedule(true)}>
             <Icon name="calendar" size={15} /> Programar envío
           </button>
           <button className="fobo-btn fobo-btn-primary fobo-btn-sm flex items-center gap-1" onClick={() => setWizard(true)}>
@@ -254,6 +336,8 @@ export function ReportsView() {
           </button>
         </div>
       </div>
+
+      <SchedulesPanel />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-24" style={{ color: "var(--color-text-tertiary)" }}>
@@ -316,6 +400,7 @@ export function ReportsView() {
 
       <AnimatePresence>
         {wizard && <ReportWizard onClose={() => setWizard(false)} />}
+        {schedule && <ScheduleModal onClose={() => setSchedule(false)} />}
       </AnimatePresence>
     </div>
   );

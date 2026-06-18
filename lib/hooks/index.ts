@@ -32,6 +32,11 @@ import {
   type Report,
   type CreateReportPayload,
 } from "@/lib/api/reports";
+import {
+  reportSchedulesApi,
+  type ReportSchedule,
+  type CreateReportSchedulePayload,
+} from "@/lib/api/reportSchedules";
 import type { Brand } from "@/store/ui";
 import type { ConnRecord } from "@/lib/mocks/data";
 import {
@@ -1174,5 +1179,53 @@ export function useCreateReport() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["reports", brandId] });
     },
+  });
+}
+
+// ---- Report schedules ------------------------------------------------------
+
+export function useReportSchedules() {
+  const brandId = useUIStore((s) => s.activeBrand?.id);
+  return useQuery<ReportSchedule[]>({
+    queryKey: ["report-schedules", brandId],
+    queryFn: () => reportSchedulesApi.list(),
+    enabled: !!brandId,
+  });
+}
+
+export function useCreateReportSchedule() {
+  const qc = useQueryClient();
+  const brandId = useUIStore((s) => s.activeBrand?.id);
+  return useMutation({
+    mutationFn: (payload: CreateReportSchedulePayload) =>
+      reportSchedulesApi.create(payload),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["report-schedules", brandId] }),
+  });
+}
+
+export function useUpdateReportSchedule() {
+  const qc = useQueryClient();
+  const brandId = useUIStore((s) => s.activeBrand?.id);
+  return useMutation({
+    mutationFn: ({
+      id,
+      payload,
+    }: {
+      id: number;
+      payload: Partial<CreateReportSchedulePayload>;
+    }) => reportSchedulesApi.update(id, payload),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["report-schedules", brandId] }),
+  });
+}
+
+export function useDeleteReportSchedule() {
+  const qc = useQueryClient();
+  const brandId = useUIStore((s) => s.activeBrand?.id);
+  return useMutation({
+    mutationFn: (id: number) => reportSchedulesApi.remove(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["report-schedules", brandId] }),
   });
 }
