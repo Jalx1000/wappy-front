@@ -11,7 +11,7 @@ export function Topbar() {
 
   return (
     <div
-      className="flex items-center gap-[14px] px-[22px] flex-none h-[62px] z-20"
+      className="flex items-center gap-[14px] px-[22px] flex-none h-[62px] z-20 print:hidden"
       style={{
         background: "var(--color-surface)",
         borderBottom: "1px solid var(--color-border)",

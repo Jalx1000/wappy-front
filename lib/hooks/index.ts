@@ -27,6 +27,11 @@ import { contentApi } from "@/lib/api/content";
 import { inboxApi } from "@/lib/api/inbox";
 import { requestsApi, type RequestItem } from "@/lib/api/requests";
 import { insightsApi } from "@/lib/api/insights";
+import {
+  reportsApi,
+  type Report,
+  type CreateReportPayload,
+} from "@/lib/api/reports";
 import type { Brand } from "@/store/ui";
 import type { ConnRecord } from "@/lib/mocks/data";
 import {
@@ -895,21 +900,6 @@ export function usePosts(brandId: string | undefined) {
   });
 }
 
-// ── Reports ───────────────────────────────────────────────────────────────────
-export type ReportItem = {
-  id: string; title: string; brand: string; period: string;
-  status: string; format: string; size: string | null; created: string;
-};
-
-export function useReports(brandId: string | undefined) {
-  return useQuery<ReportItem[]>({
-    queryKey: ["reports", brandId],
-    queryFn: async () => [] as ReportItem[],
-    initialData: [] as ReportItem[],
-    enabled: !!brandId,
-  });
-}
-
 // ── Inbox ─────────────────────────────────────────────────────────────────────
 export function useInbox(brandId: string | undefined) {
   return useQuery<InboxItem[]>({
@@ -1141,6 +1131,48 @@ export function useDeleteContract(brandId: string | undefined) {
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(["contracts", brandId], ctx.prev);
+    },
+  });
+}
+
+// ---- Reports ---------------------------------------------------------------
+
+export function useReports() {
+  const brandId = useUIStore((s) => s.activeBrand?.id);
+  return useQuery<Report[]>({
+    queryKey: ["reports", brandId],
+    queryFn: () => reportsApi.list(),
+    enabled: !!brandId,
+    // Keep the list fresh while any report is still being generated.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      const pending = data?.some(
+        (r) => r.status === "pending" || r.status === "processing",
+      );
+      return pending ? 3000 : false;
+    },
+  });
+}
+
+export function useReport(id: number | undefined) {
+  return useQuery<Report>({
+    queryKey: ["report", id],
+    queryFn: () => reportsApi.get(id!),
+    enabled: !!id,
+    refetchInterval: (query) => {
+      const s = query.state.data?.status;
+      return s === "pending" || s === "processing" ? 2500 : false;
+    },
+  });
+}
+
+export function useCreateReport() {
+  const qc = useQueryClient();
+  const brandId = useUIStore((s) => s.activeBrand?.id);
+  return useMutation({
+    mutationFn: (payload: CreateReportPayload) => reportsApi.create(payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reports", brandId] });
     },
   });
 }

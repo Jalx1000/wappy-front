@@ -75,7 +75,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
     <motion.nav
       animate={{ width }}
       transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-      className="flex-none flex flex-col h-full overflow-hidden"
+      className="flex-none flex flex-col h-full overflow-hidden print:hidden"
       style={{
         background: "var(--color-surface)",
         borderRight: "1px solid var(--color-border)",
