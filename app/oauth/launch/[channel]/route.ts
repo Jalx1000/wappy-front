@@ -20,10 +20,20 @@ export async function GET(
   context: { params: Promise<{ channel: string }> },
 ) {
   const { channel } = await context.params;
+
+  // Behind Railway's proxy req.url is the internal http://0.0.0.0:3000 origin,
+  // which is useless for a browser redirect. Rebuild the public origin from the
+  // forwarded headers (falling back to NEXTAUTH_URL / req.url).
+  const fwdHost = req.headers.get("x-forwarded-host");
+  const fwdProto = req.headers.get("x-forwarded-proto") ?? "https";
+  const publicOrigin = fwdHost
+    ? `${fwdProto}://${fwdHost}`
+    : process.env.NEXTAUTH_URL ?? new URL(req.url).origin;
+
   const session = await auth();
   const token = session?.user?.accessToken;
   if (!token) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.redirect(new URL("/login", publicOrigin));
   }
 
   const url = new URL(req.url);
