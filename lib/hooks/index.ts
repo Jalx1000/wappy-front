@@ -565,18 +565,25 @@ export function useSocialAnalytics(
       // KPIs from summary — defensive: backend may return undefined when brand has no connections
       const k = (summary.kpis ?? {}) as Record<string, number>;
       const reachVal = k.reach ?? 0;
+      const impressionsVal = k.impressions ?? 0;
       const interactions = k.engagement ?? k.total_interactions ?? 0;
-      // Engagement rate = interactions / reach (backend sends raw counts).
-      const engRate = reachVal > 0 ? (interactions / reachVal) * 100 : 0;
+      // Engagement rate = interactions / reach. Some channels (e.g. TikTok)
+      // don't expose reach — fall back to impressions so the rate isn't 0.
+      const engBase = reachVal > 0 ? reachVal : impressionsVal;
+      const engRate = engBase > 0 ? (interactions / engBase) * 100 : 0;
       const kpis: SaKpi[] = [
-        { label: "Alcance", value: fmtCompact(reachVal), delta: 0, spark: [] },
-        { label: "Impresiones", value: fmtCompact(k.impressions ?? 0), delta: 0, spark: [] },
+        { label: "Alcance", value: fmtCompact(reachVal || impressionsVal), delta: 0, spark: [] },
+        { label: "Impresiones", value: fmtCompact(impressionsVal), delta: 0, spark: [] },
         { label: "Engagement", value: engRate.toFixed(1) + "%", delta: 0, spark: [] },
         { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: 0, spark: [] },
       ];
 
-      // Trend from overview.series.reach (real, per-connection — no mock fallback)
-      const reachSeries = overview?.series.reach ?? [];
+      // Trend from overview.series. Prefer reach; channels without reach
+      // (TikTok) fall back to impressions so the chart isn't blank.
+      const reachSeries =
+        overview?.series.reach?.length
+          ? overview.series.reach
+          : overview?.series.impressions ?? [];
       const trend = {
         reach: reachSeries.map((p) => p.value),
         labels: buildLabels(reachSeries),
