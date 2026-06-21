@@ -46,7 +46,7 @@ export const filesApi = {
       if (parsed && typeof parsed === "object") {
         const errs = (parsed as { errors?: Record<string, string> }).errors;
         if (errs?.file === "cantUploadFileType") {
-          msg = "Tipo de archivo no permitido. Usa imagen o PDF.";
+          msg = "Tipo de archivo no permitido. Usa imagen o video (mp4/mov/webm).";
         } else if (errs) {
           msg = Object.values(errs).join(", ");
         }
