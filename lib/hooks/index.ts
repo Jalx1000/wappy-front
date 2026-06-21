@@ -37,6 +37,12 @@ import {
   type ReportSchedule,
   type CreateReportSchedulePayload,
 } from "@/lib/api/reportSchedules";
+import {
+  calendarApi,
+  type CalendarItem,
+  type CalendarItemInput,
+} from "@/lib/api/calendar";
+import { assetsApi, type AssetItem } from "@/lib/api/assets";
 import type { Brand } from "@/store/ui";
 import type { ConnRecord } from "@/lib/mocks/data";
 import {
@@ -836,6 +842,68 @@ export function useCalendar(brandId: string | undefined, year: number, month: nu
       posts: CAL_POSTS_RAW as unknown as Record<number, CalPost[]>,
       statusMeta: POST_STATUS_META,
     },
+    enabled: !!brandId,
+  });
+}
+
+// ── Calendar (real backend) ───────────────────────────────────────────────────
+export function useCalendarItems(
+  brandId: string | undefined,
+  from?: string,
+  to?: string,
+) {
+  return useQuery<CalendarItem[]>({
+    queryKey: ["calendar-items", brandId, from, to],
+    queryFn: () => calendarApi.list(from, to),
+    enabled: !!brandId,
+  });
+}
+
+export function useCreateCalendarItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CalendarItemInput) => calendarApi.create(payload),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["calendar-items"] }),
+  });
+}
+
+export function useUpdateCalendarItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: { id: number } & Partial<CalendarItemInput> & { status?: string }) =>
+      calendarApi.update(id, payload),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["calendar-items"] }),
+  });
+}
+
+export function useDeleteCalendarItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => calendarApi.remove(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["calendar-items"] }),
+  });
+}
+
+export function usePublishCalendarItem() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => calendarApi.publish(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["calendar-items"] }),
+  });
+}
+
+// ── Assets (real backend) ─────────────────────────────────────────────────────
+export function useAssets(brandId: string | undefined, type?: string) {
+  return useQuery<AssetItem[]>({
+    queryKey: ["assets", brandId, type],
+    queryFn: () => assetsApi.list(type),
     enabled: !!brandId,
   });
 }
