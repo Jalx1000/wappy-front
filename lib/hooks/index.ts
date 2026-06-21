@@ -577,6 +577,14 @@ export function useSocialAnalytics(
         { label: "Engagement", value: engRate.toFixed(1) + "%", delta: 0, spark: [] },
         { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: 0, spark: [] },
       ];
+      // Snapshot-only metrics (currently TikTok organic). Shown when present so
+      // they don't clutter channels that don't expose them.
+      if (k.following !== undefined)
+        kpis.push({ label: "Seguidos", value: fmtCompact(k.following), delta: 0, spark: [] });
+      if (k.total_likes !== undefined)
+        kpis.push({ label: "Likes totales", value: fmtCompact(k.total_likes), delta: 0, spark: [] });
+      if (k.video_count !== undefined)
+        kpis.push({ label: "Videos", value: fmtCompact(k.video_count), delta: 0, spark: [] });
 
       // Trend from overview.series. Prefer reach; channels without reach
       // (TikTok) fall back to impressions so the chart isn't blank.
