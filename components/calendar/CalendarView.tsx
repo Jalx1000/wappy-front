@@ -14,6 +14,8 @@ import {
   useUpdateCalendarItem,
   useDeleteCalendarItem,
   usePublishCalendarItem,
+  useCreateApproval,
+  useReviewApproval,
   useAssets,
   useConnections,
 } from "@/lib/hooks";
@@ -547,6 +549,8 @@ function PublicationModal({
   const updateMut = useUpdateCalendarItem();
   const deleteMut = useDeleteCalendarItem();
   const publishMut = usePublishCalendarItem();
+  const createApprovalMut = useCreateApproval();
+  const reviewMut = useReviewApproval();
 
   const videoAssets = assets.filter(
     (a) => a.type === "video" || a.mimeType?.startsWith("video"),
@@ -625,11 +629,38 @@ function PublicationModal({
       return;
     }
     try {
-      await persist();
+      const id = await persist();
+      // Submitting for review creates a linked approval (shows in Aprobaciones;
+      // approving it schedules the publication via the backend gate).
+      if (id && status === "review" && assetId && !meta.approvalId) {
+        const approval = await createApprovalMut.mutateAsync({
+          assetId,
+          calendarItemId: id,
+        });
+        await updateMut.mutateAsync({
+          id,
+          metadata: { ...buildMetadata(), approvalId: approval.id },
+        });
+      }
       toast(item ? "Publicación actualizada" : "Publicación guardada ✓");
       onClose();
     } catch {
       toast("No se pudo guardar");
+    }
+  };
+
+  const onReview = async (decision: "approved" | "rejected") => {
+    const approvalId = meta.approvalId as number | undefined;
+    if (!approvalId) {
+      toast("Sin aprobación vinculada");
+      return;
+    }
+    try {
+      await reviewMut.mutateAsync({ id: approvalId, status: decision });
+      toast(decision === "approved" ? "Aprobado y programado ✓" : "Rechazado");
+      onClose();
+    } catch (err) {
+      toast((err as Error).message || "No se pudo revisar");
     }
   };
 
@@ -954,6 +985,32 @@ function PublicationModal({
             >
               <Icon name="trash" size={14} /> Eliminar
             </button>
+          )}
+          {item?.status === "review" && (
+            <div className="flex items-center gap-2">
+              <button
+                className="fobo-btn fobo-btn-sm"
+                style={{
+                  background: "var(--color-error-bg)",
+                  color: "var(--color-error)",
+                }}
+                disabled={reviewMut.isPending}
+                onClick={() => onReview("rejected")}
+              >
+                Rechazar
+              </button>
+              <button
+                className="fobo-btn fobo-btn-sm"
+                style={{
+                  background: "var(--color-success-bg, #dcfce7)",
+                  color: "var(--color-success, #16a34a)",
+                }}
+                disabled={reviewMut.isPending}
+                onClick={() => onReview("approved")}
+              >
+                {reviewMut.isPending ? "..." : "Aprobar"}
+              </button>
+            </div>
           )}
           <div className="ml-auto flex items-center gap-2">
             <button

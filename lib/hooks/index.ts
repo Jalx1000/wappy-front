@@ -43,6 +43,7 @@ import {
   type CalendarItemInput,
 } from "@/lib/api/calendar";
 import { assetsApi, type AssetItem } from "@/lib/api/assets";
+import { approvalsApi } from "@/lib/api/approvals";
 import type { Brand } from "@/store/ui";
 import type { ConnRecord } from "@/lib/mocks/data";
 import {
@@ -894,6 +895,30 @@ export function usePublishCalendarItem() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => calendarApi.publish(id),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["calendar-items"] }),
+  });
+}
+
+// ── Approvals (real backend — used by the publish gate) ───────────────────────
+export function useCreateApproval() {
+  return useMutation({
+    mutationFn: (payload: { assetId: number; calendarItemId?: number }) =>
+      approvalsApi.create(payload),
+  });
+}
+
+export function useReviewApproval() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...payload
+    }: {
+      id: number;
+      status: string;
+      feedback?: string;
+    }) => approvalsApi.review(id, payload),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["calendar-items"] }),
   });
