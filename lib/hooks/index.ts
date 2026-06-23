@@ -560,7 +560,7 @@ export function useSocialAnalytics(
         ? analyticsApi.socialOverview(connectionId!, from, to)
         : Promise.resolve(null);
       const topPostsP = haveConn
-        ? analyticsApi.socialTopPosts(connectionId!, 8)
+        ? analyticsApi.socialTopPosts(connectionId!, from, to, 8)
         : Promise.resolve(null);
 
       const [summary, overview, topPosts] = await Promise.all([
@@ -578,20 +578,24 @@ export function useSocialAnalytics(
       // don't expose reach — fall back to impressions so the rate isn't 0.
       const engBase = reachVal > 0 ? reachVal : impressionsVal;
       const engRate = engBase > 0 ? (interactions / engBase) * 100 : 0;
+      // Period-over-period deltas from the overview comparison (vs. the
+      // immediately preceding window of the same length).
+      const cmp = overview?.comparison ?? {};
+      const d = (metric: string) => cmp[metric]?.change ?? 0;
       const kpis: SaKpi[] = [
-        { label: "Alcance", value: fmtCompact(reachVal || impressionsVal), delta: 0, spark: [] },
-        { label: "Impresiones", value: fmtCompact(impressionsVal), delta: 0, spark: [] },
-        { label: "Engagement", value: engRate.toFixed(1) + "%", delta: 0, spark: [] },
-        { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: 0, spark: [] },
+        { label: "Alcance", value: fmtCompact(reachVal || impressionsVal), delta: reachVal > 0 ? d("reach") : d("impressions"), spark: [] },
+        { label: "Impresiones", value: fmtCompact(impressionsVal), delta: d("impressions"), spark: [] },
+        { label: "Engagement", value: engRate.toFixed(1) + "%", delta: d("engagement"), spark: [] },
+        { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: d("followers"), spark: [] },
       ];
       // Snapshot-only metrics (currently TikTok organic). Shown when present so
       // they don't clutter channels that don't expose them.
       if (k.following !== undefined)
-        kpis.push({ label: "Seguidos", value: fmtCompact(k.following), delta: 0, spark: [] });
+        kpis.push({ label: "Seguidos", value: fmtCompact(k.following), delta: d("following"), spark: [] });
       if (k.total_likes !== undefined)
-        kpis.push({ label: "Likes totales", value: fmtCompact(k.total_likes), delta: 0, spark: [] });
+        kpis.push({ label: "Likes totales", value: fmtCompact(k.total_likes), delta: d("total_likes"), spark: [] });
       if (k.video_count !== undefined)
-        kpis.push({ label: "Videos", value: fmtCompact(k.video_count), delta: 0, spark: [] });
+        kpis.push({ label: "Videos", value: fmtCompact(k.video_count), delta: d("video_count"), spark: [] });
 
       // Trend from overview.series. Prefer reach; channels without reach
       // (TikTok) fall back to impressions so the chart isn't blank.

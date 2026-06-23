@@ -52,6 +52,22 @@ function SocialSkeleton() {
   );
 }
 
+// Post thumbnail with graceful fallback: FB/IG media URLs expire or (for video)
+// point at a non-image, so on load error we show the placeholder, not a blank.
+function PostThumb({ url, ch, caption }: { url: string | null | undefined; ch: string; caption: string }) {
+  const [errored, setErrored] = useState(false);
+  if (!url || errored) return <ImagePlaceholder height={140} label={`post · ${ch}`} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={url}
+      alt={caption}
+      style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
 const SOCIAL_CHANNELS = ["instagram", "facebook", "tiktok", "linkedin", "youtube"];
 const NETWORK_LABEL: Record<string, string> = {
   instagram: "Instagram",
@@ -238,17 +254,7 @@ export function SocialAnalytics() {
                 onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.boxShadow = "none")}
               >
                 <div className="relative">
-                  {p.mediaUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.mediaUrl}
-                      alt={p.caption}
-                      style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
-                      onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = "none")}
-                    />
-                  ) : (
-                    <ImagePlaceholder height={140} label={`post · ${p.ch}`} />
-                  )}
+                  <PostThumb url={p.mediaUrl} ch={p.ch} caption={p.caption} />
                   <span className="absolute top-2 left-2">
                     <ChannelDot channel={p.ch} size={26} radius={7} />
                   </span>

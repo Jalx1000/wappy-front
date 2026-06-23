@@ -41,6 +41,11 @@ export type SocialSummaryResponse = {
 };
 
 export type SeriesPoint = { date: string; value: number };
+export type MetricComparison = {
+  current: number;
+  previous: number;
+  change: number;
+};
 export type SocialOverviewResponse = {
   connectionId: number;
   from: string;
@@ -52,6 +57,7 @@ export type SocialOverviewResponse = {
     reach?: SeriesPoint[];
     impressions?: SeriesPoint[];
   };
+  comparison?: Record<string, MetricComparison>;
 };
 
 function qs(params: Record<string, string | number | undefined>) {
@@ -101,9 +107,14 @@ export const analyticsApi = {
       `/analytics/social/overview${qs({ connectionId, from, to })}`,
     ),
 
-  socialTopPosts: (connectionId: number, limit = 8) =>
+  socialTopPosts: (
+    connectionId: number,
+    from?: string,
+    to?: string,
+    limit = 8,
+  ) =>
     api.get<SocialTopPost[]>(
-      `/analytics/social/top-posts${qs({ connectionId, limit })}`,
+      `/analytics/social/top-posts${qs({ connectionId, from, to, limit })}`,
     ),
 
   webOverview: (
