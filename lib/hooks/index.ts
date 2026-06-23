@@ -43,7 +43,7 @@ import {
   type CalendarItemInput,
 } from "@/lib/api/calendar";
 import { assetsApi, type AssetItem } from "@/lib/api/assets";
-import { approvalsApi } from "@/lib/api/approvals";
+import { approvalsApi, type ApprovalRecord } from "@/lib/api/approvals";
 import type { Brand } from "@/store/ui";
 import type { ConnRecord } from "@/lib/mocks/data";
 import {
@@ -901,10 +901,21 @@ export function usePublishCalendarItem() {
 }
 
 // ── Approvals (real backend — used by the publish gate) ───────────────────────
+export function useApprovalsList(brandId: string | undefined, status?: string) {
+  return useQuery<ApprovalRecord[]>({
+    queryKey: ["approvals-real", brandId, status],
+    queryFn: () => approvalsApi.list(status),
+    enabled: !!brandId,
+  });
+}
+
 export function useCreateApproval() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: { assetId: number; calendarItemId?: number }) =>
       approvalsApi.create(payload),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["approvals-real"] }),
   });
 }
 
@@ -919,8 +930,10 @@ export function useReviewApproval() {
       status: string;
       feedback?: string;
     }) => approvalsApi.review(id, payload),
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["calendar-items"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["calendar-items"] });
+      qc.invalidateQueries({ queryKey: ["approvals-real"] });
+    },
   });
 }
 
