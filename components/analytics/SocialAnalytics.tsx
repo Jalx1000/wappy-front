@@ -14,6 +14,7 @@ import {
   useBrands,
   useConnections,
   useSyncConnectionMutation,
+  type SaPost,
 } from "@/lib/hooks";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -66,6 +67,30 @@ function PostThumb({ url, ch, caption }: { url: string | null | undefined; ch: s
       onError={() => setErrored(true)}
     />
   );
+}
+
+// Per-post metric chips: render only the metrics that actually have data so
+// each network shows what it captures (TikTok: vistas/likes/coment/comp;
+// Meta: alcance/likes/coment/comp/clics) without empty zeros cluttering.
+function postChips(p: SaPost): { label: string; value: string }[] {
+  const r = p.raw;
+  const chips: { label: string; value: string }[] = [];
+  if (!r) {
+    chips.push({ label: "alcance", value: p.reach }, { label: "eng", value: p.eng });
+    return chips;
+  }
+  if (r.views > 0) chips.push({ label: "vistas", value: p.views ?? "0" });
+  if (r.reach > 0) chips.push({ label: "alcance", value: p.reach });
+  if (r.impressions > 0) chips.push({ label: "impr.", value: String(r.impressions) });
+  if (r.likes > 0) chips.push({ label: "likes", value: p.likes });
+  if (r.comments > 0) chips.push({ label: "coment.", value: p.comments ?? "0" });
+  if (r.shares > 0) chips.push({ label: "comp.", value: p.shares ?? "0" });
+  if (r.saves > 0) chips.push({ label: "guard.", value: p.saves ?? "0" });
+  if (r.clicks > 0) chips.push({ label: "clics", value: p.clicks ?? "0" });
+  chips.push({ label: "eng", value: p.eng });
+  // Always show at least something even for a brand-new post with no metrics.
+  if (chips.length === 1) chips.unshift({ label: "likes", value: p.likes });
+  return chips;
 }
 
 const SOCIAL_CHANNELS = ["instagram", "facebook", "tiktok", "linkedin", "youtube"];
@@ -277,13 +302,12 @@ export function SocialAnalytics() {
                   >
                     {p.caption}
                   </div>
-                  <div className="flex gap-3 text-[11.5px]" style={{ color: "var(--color-text-tertiary)" }}>
-                    <span>
-                      <strong style={{ color: "var(--color-text-primary)" }}>{p.reach}</strong> alcance
-                    </span>
-                    <span>
-                      <strong style={{ color: "var(--color-text-primary)" }}>{p.eng}</strong> eng
-                    </span>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11.5px]" style={{ color: "var(--color-text-tertiary)" }}>
+                    {postChips(p).map((chip) => (
+                      <span key={chip.label}>
+                        <strong style={{ color: "var(--color-text-primary)" }}>{chip.value}</strong> {chip.label}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </div>

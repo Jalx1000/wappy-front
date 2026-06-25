@@ -82,8 +82,23 @@ export type SaPost = {
   eng: string;
   likes: string;
   comments?: string;
+  shares?: string;
+  views?: string;
+  clicks?: string;
   saves?: string;
   date: string;
+  // Raw numbers so the UI can decide which metric chips to render (>0).
+  raw?: {
+    reach: number;
+    impressions: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    views: number;
+    clicks: number;
+    saves: number;
+    engagement: number;
+  };
 };
 
 export type SocialAnalyticsData = {
@@ -618,19 +633,35 @@ export function useSocialAnalytics(
         : "instagram";
 
       const mappedPosts = rawPosts.slice(0, 8).map((p) => {
-        const reach = p.metrics?.reach ?? 0;
-        const eng = p.metrics?.engagement ?? 0;
-        const engRate = reach > 0 ? (eng / reach) * 100 : 0;
+        const m = (p.metrics ?? {}) as Record<string, number>;
+        const reach = m.reach ?? 0;
+        const impressions = m.impressions ?? 0;
+        const likes = m.likes ?? 0;
+        const comments = m.comments ?? 0;
+        const shares = m.shares ?? 0;
+        // TikTok stores `views`, Meta video posts store `video_views`.
+        const views = m.views ?? m.video_views ?? 0;
+        const clicks = m.clicks ?? 0;
+        const saves = m.saves ?? 0;
+        const eng = m.engagement ?? likes + comments + shares;
+        // Engagement rate against reach; channels without reach (TikTok) fall
+        // back to views so the rate isn't a misleading 0%.
+        const engBase = reach > 0 ? reach : views;
+        const engRate = engBase > 0 ? (eng / engBase) * 100 : 0;
         return {
           ch: channelLabel,
           caption: p.caption ?? "—",
           mediaUrl: p.mediaUrl ?? null,
-          reach: fmtCompact(reach),
+          reach: fmtCompact(reach || views),
           eng: engRate.toFixed(1) + "%",
-          likes: fmtCompact(p.metrics?.likes ?? 0),
-          comments: fmtCompact(p.metrics?.comments ?? 0),
-          saves: fmtCompact(p.metrics?.saves ?? 0),
+          likes: fmtCompact(likes),
+          comments: fmtCompact(comments),
+          shares: fmtCompact(shares),
+          views: fmtCompact(views),
+          clicks: fmtCompact(clicks),
+          saves: fmtCompact(saves),
           date: fmtShortDate(p.publishedAt),
+          raw: { reach, impressions, likes, comments, shares, views, clicks, saves, engagement: eng },
         };
       });
 
