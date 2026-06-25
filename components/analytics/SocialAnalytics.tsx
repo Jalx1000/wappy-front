@@ -235,7 +235,7 @@ export function SocialAnalytics() {
       >
         {kpis.map((k) => (
           <motion.div key={k.label} variants={fadeUp}>
-            <StatTile label={k.label} value={k.value} delta={k.delta} spark={k.spark} />
+            <StatTile label={k.label} value={k.value} delta={k.delta} spark={k.spark} unavailable={k.unavailable} note={k.note} />
           </motion.div>
         ))}
       </motion.div>

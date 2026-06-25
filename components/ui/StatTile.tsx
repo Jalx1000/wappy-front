@@ -21,9 +21,13 @@ interface StatTileProps {
   delta: number;
   spark: number[];
   goodDown?: boolean;
+  // When the metric can't be captured for this channel, render the value (e.g.
+  // "N/D") with an explanatory note instead of a misleading delta/sparkline.
+  unavailable?: boolean;
+  note?: string;
 }
 
-export function StatTile({ label, value, delta, spark, goodDown }: StatTileProps) {
+export function StatTile({ label, value, delta, spark, goodDown, unavailable, note }: StatTileProps) {
   const positive = goodDown ? delta < 0 : delta > 0;
   const col = positive ? "var(--color-success)" : "var(--color-error)";
   return (
@@ -40,22 +44,30 @@ export function StatTile({ label, value, delta, spark, goodDown }: StatTileProps
               fontWeight: 600,
               fontSize: 26,
               letterSpacing: "-0.02em",
-              color: "var(--color-text-primary)",
+              color: unavailable ? "var(--color-text-tertiary)" : "var(--color-text-primary)",
             }}
           >
             {value}
           </div>
-          <div className="flex items-center gap-[5px] mt-[8px]">
-            <span className="inline-flex items-center gap-[2px] text-[12px] font-semibold" style={{ color: col }}>
-              <Icon name={positive ? "arrowUp" : "arrowDown"} size={12} color={col} />
-              {Math.abs(delta)}%
-            </span>
-            <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-              vs. período anterior
-            </span>
-          </div>
+          {unavailable ? (
+            <div className="mt-[8px] text-[11px] leading-snug" style={{ color: "var(--color-text-tertiary)" }}>
+              {note ?? "No disponible"}
+            </div>
+          ) : (
+            <div className="flex items-center gap-[5px] mt-[8px]">
+              <span className="inline-flex items-center gap-[2px] text-[12px] font-semibold" style={{ color: col }}>
+                <Icon name={positive ? "arrowUp" : "arrowDown"} size={12} color={col} />
+                {Math.abs(delta)}%
+              </span>
+              <span className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
+                vs. período anterior
+              </span>
+            </div>
+          )}
         </div>
-        <MiniSpark data={spark} color={positive ? "var(--color-secondary)" : "var(--color-error)"} />
+        {!unavailable && (
+          <MiniSpark data={spark} color={positive ? "var(--color-secondary)" : "var(--color-error)"} />
+        )}
       </div>
     </div>
   );

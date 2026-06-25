@@ -53,7 +53,7 @@ import {
   CONNECTIONS,
 } from "@/lib/mocks/data";
 import {
-  SA_KPIS, SA_TREND, SA_NETWORKS, SA_AUDIENCE_AGE, SA_GENDER, SA_GEO, TOP_POSTS,
+  SA_TREND, SA_NETWORKS, SA_AUDIENCE_AGE, SA_GENDER, SA_GEO, TOP_POSTS,
   ADS_KPIS, ADS_PLATFORMS, ADS_CAMPAIGNS, ADS_SPEND_TREND,
   WEB_KPIS, WEB_SESSIONS_THIS, WEB_SESSIONS_PREV, WEB_SESSION_LABELS,
   WEB_SOURCES, WEB_PAGES, WEB_DEVICES, WEB_FUNNEL,
@@ -70,9 +70,20 @@ const IS_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 // ── Helper types (inferred from mock shapes) ──────────────────────────────────
 type KpiItem     = typeof KPIS[number];
 type AlertItem   = typeof ALERTS[number];
-type SaKpi       = typeof SA_KPIS[number];
 type AdsKpi      = typeof ADS_KPIS[number];
 type WebKpi      = typeof WEB_KPIS[number];
+
+// Explicit (not inferred from the mock) so KPI tiles can flag a metric as
+// unavailable for the active channel — e.g. Facebook impressions, which Meta
+// removed from the Page Insights API in v25.
+export type SaKpi = {
+  label: string;
+  value: string;
+  delta: number;
+  spark: number[];
+  unavailable?: boolean;
+  note?: string;
+};
 
 export type SaPost = {
   ch: string;
@@ -522,6 +533,12 @@ const CHANNEL_BACKEND_TO_UI: Record<string, string> = {
   ga4: "ga4",
 };
 
+// Backend channels whose organic API does not return impressions, so the
+// Impresiones KPI must show "N/D" instead of 0. Facebook Pages lost
+// page_impressions in Graph API v25; instagram_login (Basic Display) never
+// exposed it. TikTok/Instagram(Graph)/YouTube map views→impressions and stay.
+const IMPRESSIONS_UNAVAILABLE = new Set<string>(["facebook_page", "instagram_login"]);
+
 function fmtCompact(n: number): string {
   if (!Number.isFinite(n)) return "0";
   if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "") + "M";
@@ -597,9 +614,15 @@ export function useSocialAnalytics(
       // immediately preceding window of the same length).
       const cmp = overview?.comparison ?? {};
       const d = (metric: string) => cmp[metric]?.change ?? 0;
+      // Channels whose organic API doesn't expose impressions. Facebook Pages
+      // lost page_impressions in Graph API v25 (returns #100); instagram_login
+      // (Basic Display) never had it. Show "N/D" rather than a misleading 0.
+      const impressionsAvailable = !IMPRESSIONS_UNAVAILABLE.has(connectionChannel ?? "");
       const kpis: SaKpi[] = [
         { label: "Alcance", value: fmtCompact(reachVal || impressionsVal), delta: reachVal > 0 ? d("reach") : d("impressions"), spark: [] },
-        { label: "Impresiones", value: fmtCompact(impressionsVal), delta: d("impressions"), spark: [] },
+        impressionsAvailable
+          ? { label: "Impresiones", value: fmtCompact(impressionsVal), delta: d("impressions"), spark: [] }
+          : { label: "Impresiones", value: "N/D", delta: 0, spark: [], unavailable: true, note: "Meta no expone esta métrica para esta red" },
         { label: "Engagement", value: engRate.toFixed(1) + "%", delta: d("engagement"), spark: [] },
         { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: d("followers"), spark: [] },
       ];
