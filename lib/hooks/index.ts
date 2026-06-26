@@ -605,15 +605,31 @@ export function useSocialAnalytics(
       const k = (summary.kpis ?? {}) as Record<string, number>;
       const reachVal = k.reach ?? 0;
       const impressionsVal = k.impressions ?? 0;
+      const followersVal = k.followers ?? 0;
       const interactions = k.engagement ?? k.total_interactions ?? 0;
-      // Engagement rate = interactions / reach. Some channels (e.g. TikTok)
-      // don't expose reach — fall back to impressions so the rate isn't 0.
-      const engBase = reachVal > 0 ? reachVal : impressionsVal;
+      // Engagement rate "by followers" (the most widely-used definition): all
+      // interactions (reactions + comments + shares) ÷ total followers × 100.
+      // This needs neither impressions nor reach, so it works for Facebook —
+      // which exposes neither via the API. Fall back to reach/impressions only
+      // when a channel reports no followers.
+      const engBase = followersVal > 0 ? followersVal : reachVal > 0 ? reachVal : impressionsVal;
       const engRate = engBase > 0 ? (interactions / engBase) * 100 : 0;
       // Period-over-period deltas from the overview comparison (vs. the
       // immediately preceding window of the same length).
       const cmp = overview?.comparison ?? {};
       const d = (metric: string) => cmp[metric]?.change ?? 0;
+      // Delta of the engagement *rate* (not just interactions): compare this
+      // period's rate against the previous one using both metrics' history.
+      const engRateDelta = (() => {
+        const ec = cmp.engagement ?? cmp.total_interactions;
+        const fc = cmp.followers;
+        const curBase = fc?.current || ec?.current || 1;
+        const prevBase = fc?.previous || ec?.previous || 0;
+        const curRate = (ec?.current ?? interactions) / (curBase || 1);
+        const prevRate = prevBase > 0 ? (ec?.previous ?? 0) / prevBase : 0;
+        if (prevRate === 0) return 0;
+        return Number((((curRate - prevRate) / prevRate) * 100).toFixed(1));
+      })();
       // Channels whose organic API doesn't expose impressions. Facebook Pages
       // lost page_impressions in Graph API v25 (returns #100); instagram_login
       // (Basic Display) never had it. Show "N/D" rather than a misleading 0.
@@ -623,7 +639,7 @@ export function useSocialAnalytics(
         impressionsAvailable
           ? { label: "Impresiones", value: fmtCompact(impressionsVal), delta: d("impressions"), spark: [] }
           : { label: "Impresiones", value: "N/D", delta: 0, spark: [], unavailable: true, note: "Meta no expone esta métrica para esta red" },
-        { label: "Engagement", value: engRate.toFixed(1) + "%", delta: d("engagement"), spark: [] },
+        { label: "Engagement", value: engRate.toFixed(1) + "%", delta: engRateDelta, spark: [] },
         { label: "Seguidores", value: fmtCompact(k.followers ?? 0), delta: d("followers"), spark: [] },
       ];
       // Snapshot-only metrics (currently TikTok organic). Shown when present so
@@ -667,9 +683,10 @@ export function useSocialAnalytics(
         const clicks = m.clicks ?? 0;
         const saves = m.saves ?? 0;
         const eng = m.engagement ?? likes + comments + shares;
-        // Engagement rate against reach; channels without reach (TikTok) fall
-        // back to views so the rate isn't a misleading 0%.
-        const engBase = reach > 0 ? reach : views;
+        // Engagement rate per post: prefer reach, then views; when a channel
+        // (Facebook) exposes neither at post level, fall back to account
+        // followers — the "by followers" rate the same way the KPI card does.
+        const engBase = reach > 0 ? reach : views > 0 ? views : followersVal;
         const engRate = engBase > 0 ? (eng / engBase) * 100 : 0;
         return {
           ch: channelLabel,
