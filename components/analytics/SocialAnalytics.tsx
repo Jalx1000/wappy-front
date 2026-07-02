@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Segmented } from "@/components/ui/Segmented";
+import { DateRangeInputs } from "@/components/ui/DateRangeInputs";
 import { StatTile } from "@/components/ui/StatTile";
 import { Panel } from "@/components/ui/Panel";
 import { AreaChart } from "@/components/ui/AreaChart";
@@ -16,7 +17,6 @@ import {
   useSyncConnectionMutation,
   type SaPost,
 } from "@/lib/hooks";
-import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 
@@ -29,8 +29,6 @@ const CHANNEL_UI_TO_BACKEND: Record<string, string> = {
   googleads: "google_ads",
   ga4: "ga4",
 };
-
-const PERIOD_DAYS: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90 };
 
 const RANGE_OPTS = [{ v: "7d", l: "7 días" }, { v: "30d", l: "30 días" }, { v: "90d", l: "90 días" }];
 
@@ -107,10 +105,8 @@ export function SocialAnalytics() {
   const [network, setNetwork] = useState<string>("");
   const [pageId, setPageId] = useState<number | undefined>(undefined);
   const { activeBrand } = useUIStore();
-  const { data: brands = BRANDS_FALLBACK } = useBrands();
+  const { data: brands = [], isPending: brandsPending } = useBrands();
   const brand = activeBrand ?? brands[0];
-
-  const days = PERIOD_DAYS[range] ?? 30;
 
   // All social accounts of the brand, grouped so the user can pick exactly one.
   const { data: conns = [] } = useConnections(brand?.id);
@@ -130,16 +126,25 @@ export function SocialAnalytics() {
     brand?.id,
     activePage?.id,
     backendChannel,
-    days,
+    range,
   );
   const toast = useToast();
   const syncMutation = useSyncConnectionMutation(brand?.id);
+  // With a custom range active, Sincronizar re-fetches exactly those dates
+  // from the platform APIs; presets keep the default 90-day backfill.
+  const isCustomRange = range.startsWith("custom:");
   const handleSync = () => {
     if (activePage?.id === undefined) return;
-    syncMutation.mutate(activePage.id, {
-      onSuccess: () => toast("Cuenta sincronizada", "info"),
-      onError: () => toast("No se pudo sincronizar la cuenta", "info"),
-    });
+    const [, customFrom, customTo] = isCustomRange ? range.split(":") : [];
+    syncMutation.mutate(
+      customFrom && customTo
+        ? { id: activePage.id, from: customFrom, to: customTo }
+        : activePage.id,
+      {
+        onSuccess: () => toast("Cuenta sincronizada", "info"),
+        onError: () => toast("No se pudo sincronizar la cuenta", "info"),
+      },
+    );
   };
 
   const kpis      = data?.kpis     ?? [];
@@ -150,6 +155,25 @@ export function SocialAnalytics() {
     label: trend.labels[i],
     value: v,
   }));
+
+  // No brand (mock fallback removed): skeleton while the list loads, empty
+  // state if the workspace really has no brands yet. Without this guard the
+  // disabled analytics query would keep isPending true forever.
+  if (!brand) {
+    if (brandsPending) return <SocialSkeleton />;
+    return (
+      <div className="p-7 max-w-[1440px] flex flex-col gap-4">
+        <h1 style={{ fontFamily: "var(--ff-display)", fontWeight: 600, fontSize: 22, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>
+          Social Analytics
+        </h1>
+        <div className="rounded-xl p-6 text-center" style={{ border: "1px dashed var(--color-border)", background: "var(--color-surface)" }}>
+          <div className="text-[15px] font-medium" style={{ color: "var(--color-text-primary)" }}>
+            Creá una marca y conectá una red social para ver métricas.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (isPending) return <SocialSkeleton />;
 
@@ -216,11 +240,16 @@ export function SocialAnalytics() {
             </select>
           )}
           <Segmented options={RANGE_OPTS} value={range} onChange={setRange} />
+          <DateRangeInputs value={range} onChange={setRange} />
           <button
             onClick={handleSync}
             disabled={syncMutation.isPending}
             className="fobo-btn fobo-btn-secondary fobo-btn-sm"
-            title="Sincronizar esta cuenta (90 días)"
+            title={
+              isCustomRange
+                ? "Sincronizar esta cuenta en el rango de fechas elegido"
+                : "Sincronizar esta cuenta (últimos 90 días)"
+            }
           >
             {syncMutation.isPending ? "Sincronizando…" : "Sincronizar"}
           </button>

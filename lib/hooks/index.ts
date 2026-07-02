@@ -516,14 +516,25 @@ export function useDisconnectMutation(brandId: string | undefined) {
   });
 }
 
+// Plain id syncs the default 90-day window; the object form syncs a custom
+// {from,to} range (YYYY-MM-DD) — used by the analytics date pickers.
+type SyncConnectionVars =
+  | number
+  | { id: number; from?: string; to?: string };
+
 export function useSyncConnectionMutation(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
     // Enqueue the sync, then poll the job(s) until they finish so the mutation
     // stays "pending" (spinner) for the real duration and the analytics cards
     // refetch fresh data on settle — instead of appearing to do nothing.
-    mutationFn: async (id: number) => {
-      const { jobIds } = await brandsApi.syncConnection(id);
+    mutationFn: async (vars: SyncConnectionVars) => {
+      const { id, from, to } =
+        typeof vars === "number" ? { id: vars, from: undefined, to: undefined } : vars;
+      const { jobIds } = await brandsApi.syncConnection(
+        id,
+        from || to ? { from, to } : undefined,
+      );
       const queueOf = (jid: string): "web" | "ads" | "social" =>
         jid.startsWith("web") ? "web" : jid.startsWith("ads") ? "ads" : "social";
       const pending = jobIds.filter((j): j is string => typeof j === "string");
@@ -715,14 +726,14 @@ export function useSocialAnalytics(
   brandId: string | undefined,
   connectionId: number | undefined,
   connectionChannel: string | undefined,
-  days = 30,
+  // "7d" | "30d" | "90d" | "custom:YYYY-MM-DD:YYYY-MM-DD"
+  range = "30d",
 ) {
   return useQuery<SocialAnalyticsData>({
-    queryKey: ["analytics", "social", brandId, connectionId, days],
+    queryKey: ["analytics", "social", brandId, connectionId, range],
     enabled: !!brandId,
     queryFn: async () => {
-      const from = isoBack(days);
-      const to = isoBack(0);
+      const { from, to } = rangeToDates(range);
 
       // All views are per-connection (one page/account at a time).
       const haveConn = typeof connectionId === "number";
@@ -806,11 +817,13 @@ export function useSocialAnalytics(
         labels: buildLabels(reachSeries),
       };
 
-      // Top posts from backend or topPosts response
-      const rawPosts =
-        (topPosts && Array.isArray(topPosts) && topPosts.length ? topPosts : null) ??
-        summary.topPosts ??
-        [];
+      // Top posts: with a connection, trust the range-filtered endpoint even
+      // when it's empty — falling back to the summary's all-time top posts
+      // would show publications outside the selected period. The summary
+      // fallback only applies to the no-connection (brand-wide) view.
+      const rawPosts = haveConn
+        ? (Array.isArray(topPosts) ? topPosts : [])
+        : (summary.topPosts ?? []);
       const channelLabel = connectionChannel
         ? CHANNEL_BACKEND_TO_UI[connectionChannel] ?? connectionChannel
         : "instagram";

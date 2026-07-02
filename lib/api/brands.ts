@@ -281,10 +281,12 @@ export const brandsApi = {
     return mapBackendConnection(updated);
   },
 
-  syncConnection: (connectionId: number) =>
+  // Optional {from,to} (YYYY-MM-DD) syncs exactly that window instead of the
+  // default 90-day backfill.
+  syncConnection: (connectionId: number, range?: { from?: string; to?: string }) =>
     api.post<{ jobIds: (string | number | undefined)[] }>(
       `/connections/${connectionId}/sync`,
-      {},
+      range ?? {},
     ),
 
   getSyncJob: (
