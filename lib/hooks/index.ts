@@ -1,8 +1,9 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueries, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   brandsApi,
   discoveriesApi,
   orphansApi,
+  type BrandOverview,
   type CreateBrandDto,
   type UpdateBrandDto,
   type Discovery,
@@ -22,7 +23,18 @@ import {
 import { filesApi } from "@/lib/api/files";
 import { api } from "@/lib/api/client";
 import { useUIStore } from "@/store/ui";
-import { analyticsApi, type WebCountryRow } from "@/lib/api/analytics";
+import {
+  analyticsApi,
+  type WebCountryRow,
+  type AdsOverviewResponse,
+} from "@/lib/api/analytics";
+import {
+  engagementRate,
+  formatDashboardKpis,
+  type DashboardKpisRaw,
+  type KpiItem,
+} from "@/lib/dashboard/kpis";
+import { parseSpend, type AgencyBrandMetrics } from "@/lib/dashboard/agency";
 import { contentApi } from "@/lib/api/content";
 import { inboxApi } from "@/lib/api/inbox";
 import { requestsApi, type RequestItem } from "@/lib/api/requests";
@@ -68,7 +80,7 @@ import {
 const IS_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 
 // ── Helper types (inferred from mock shapes) ──────────────────────────────────
-type KpiItem     = typeof KPIS[number];
+// KpiItem lives in @/lib/dashboard/kpis (imported above) so its logic is testable.
 type AlertItem   = typeof ALERTS[number];
 type AdsKpi      = typeof ADS_KPIS[number];
 type WebKpi      = typeof WEB_KPIS[number];
@@ -167,6 +179,13 @@ export function useBrands() {
   });
 }
 
+export function useBrandsOverview() {
+  return useQuery<BrandOverview[]>({
+    queryKey: ["brands", "overview"],
+    queryFn: () => brandsApi.overview(),
+  });
+}
+
 export function useCreateBrand() {
   const qc = useQueryClient();
   return useMutation({
@@ -253,16 +272,8 @@ export function useUploadFile() {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-export type DashboardKpisRaw = {
-  followers: number;
-  reach: number;
-  impressions: number;
-  engagement: number;
-  engagement_rate: number;
-  likes: number;
-  shares: number;
-  comments: number;
-};
+// DashboardKpisRaw / KpiItem / formatDashboardKpis live in @/lib/dashboard/kpis.
+export type { DashboardKpisRaw } from "@/lib/dashboard/kpis";
 
 export type DashboardData = {
   kpis: KpiItem[];
@@ -276,36 +287,23 @@ function isoDaysAgo(n: number) {
   return d.toISOString().slice(0, 10);
 }
 
-function fmtNum(n: number) {
-  if (!Number.isFinite(n)) return "0";
-  if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "") + "M";
-  if (Math.abs(n) >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
-  return String(Math.round(n));
-}
-
-function formatDashboardKpis(raw: DashboardKpisRaw): KpiItem[] {
-  // engagement_rate viene del backend multiplicado por 100 (e.g. 295.56 → 2.96%).
-  const engRate = typeof raw.engagement_rate === "number" ? raw.engagement_rate / 100 : 0;
-  return [
-    { id: "reach",  label: "Alcance total",     value: fmtNum(raw.reach ?? 0),       delta: 0, spark: [] },
-    { id: "eng",    label: "Engagement",         value: engRate.toFixed(1) + "%",     delta: 0, spark: [] },
-    { id: "fans",   label: "Seguidores",         value: fmtNum(raw.followers ?? 0),   delta: 0, spark: [] },
-    { id: "roas",   label: "Impresiones",        value: fmtNum(raw.impressions ?? 0), delta: 0, spark: [] },
-  ];
-}
-
 export function useDashboard(brandId: string | undefined, days = 30) {
   return useQuery<DashboardData>({
     queryKey: ["dashboard", brandId, days],
     queryFn: async () => {
+      // Current window plus the immediately-preceding window of the same length,
+      // so each KPI can show its change vs. the previous period.
       const from = isoDaysAgo(days);
       const to = isoDaysAgo(0);
-      const summary = await api.get<{
-        kpis: DashboardKpisRaw;
-        topPosts: unknown[];
-      }>(`/analytics/social/summary?from=${from}&to=${to}`);
+      const prevFrom = isoDaysAgo(days * 2);
+      const prevTo = from;
+      type Summary = { kpis: DashboardKpisRaw; topPosts: unknown[] };
+      const [summary, prev] = await Promise.all([
+        api.get<Summary>(`/analytics/social/summary?from=${from}&to=${to}`),
+        api.get<Summary>(`/analytics/social/summary?from=${prevFrom}&to=${prevTo}`),
+      ]);
       return {
-        kpis: formatDashboardKpis(summary.kpis),
+        kpis: formatDashboardKpis(summary.kpis, prev.kpis),
         alerts: [],
         raw: summary.kpis,
       };
@@ -345,6 +343,117 @@ export function useDashboardSeries(
     },
     enabled: !!brandId && typeof connectionId === "number",
   });
+}
+
+// ── Per-channel breakdown (real) ──────────────────────────────────────────────
+// Social channels whose organic API exposes a followers/engagement summary.
+const SOCIAL_CHANNELS = new Set([
+  "facebook",
+  "instagram",
+  "instagramlogin",
+  "tiktok",
+  "linkedin",
+  "youtube",
+]);
+
+export type ChannelSummary = {
+  connectionId: number;
+  ch: string;
+  account: string | null;
+  followers: number;
+  engagementRate: number;
+};
+
+// Fetches a real per-connection summary for each connected social channel so the
+// dashboard's "Por canal" panel can show live followers + engagement instead of
+// fabricated numbers. Returns only the channels that have resolved data.
+export function useChannelSummaries(
+  brandId: string | undefined,
+  connections: ConnRecord[],
+  days = 30,
+): ChannelSummary[] {
+  const from = isoBack(days);
+  const to = isoBack(0);
+  const social = connections.filter(
+    (c) =>
+      c.status === "connected" &&
+      typeof c.id === "number" &&
+      SOCIAL_CHANNELS.has(c.ch),
+  );
+  const results = useQueries({
+    queries: social.map((c) => ({
+      queryKey: ["channel-summary", brandId, c.id, days] as const,
+      enabled: !!brandId,
+      queryFn: async (): Promise<ChannelSummary> => {
+        const s = await analyticsApi.socialSummary(from, to, c.id!);
+        const k = (s.kpis ?? {}) as Record<string, number>;
+        return {
+          connectionId: c.id!,
+          ch: c.ch,
+          account: c.account,
+          followers: k.followers ?? 0,
+          // Same "by followers" rate as the KPI cards (tested in kpis.test.ts).
+          engagementRate: engagementRate(k),
+        };
+      },
+    })),
+  });
+  return results
+    .map((r) => r.data)
+    .filter((d): d is ChannelSummary => !!d);
+}
+
+// ── Agency (multi-brand) breakdown (real) ─────────────────────────────────────
+// For each brand fetches its social summary, ads spend and connection health, so
+// the Agency view shows live per-brand numbers instead of fabricated ones.
+// Returns a map keyed by brandId (only brands whose query has resolved).
+export function useAgencySummaries(
+  brands: { id: string }[],
+  days = 30,
+): Record<string, AgencyBrandMetrics> {
+  const from = isoBack(days);
+  const to = isoBack(0);
+  const results = useQueries({
+    queries: brands.map((b) => ({
+      queryKey: ["agency-summary", b.id, days] as const,
+      queryFn: async (): Promise<AgencyBrandMetrics> => {
+        const headers = { "x-brand-id": b.id };
+        const [summary, ads, conns] = await Promise.all([
+          api.get<{ kpis: Record<string, number> }>(
+            `/analytics/social/summary?from=${from}&to=${to}`,
+            { headers },
+          ),
+          api
+            .get<AdsOverviewResponse>(
+              `/analytics/ads/overview?from=${from}&to=${to}&compare=true`,
+              { headers },
+            )
+            .catch(() => null),
+          api
+            .get<{ status: string }[]>(`/connections`, { headers })
+            .catch(() => [] as { status: string }[]),
+        ]);
+        const k = summary.kpis ?? {};
+        const spendKpi = ads?.kpis?.find((x) => x.label === "Inversión")?.value ?? 0;
+        return {
+          brandId: b.id,
+          followers: k.followers ?? 0,
+          reach: k.reach ?? 0,
+          engagement: k.engagement ?? 0,
+          engagementRate: engagementRate(k),
+          spend: parseSpend(spendKpi),
+          needsAttention: (conns ?? []).filter(
+            (c) => c.status === "expired" || c.status === "error",
+          ).length,
+        };
+      },
+    })),
+  });
+  const map: Record<string, AgencyBrandMetrics> = {};
+  results.forEach((r, i) => {
+    if (r.data) map[brands[i].id] = r.data;
+  });
+  return map;
 }
 
 // ── Connections ───────────────────────────────────────────────────────────────

@@ -66,17 +66,27 @@ export function BrandSwitcher() {
           fontFamily: "var(--font-ui)",
         }}
       >
-        <span
-          className="flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0"
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            background: brand.tint,
-          }}
-        >
-          {brand.short}
-        </span>
+        {brand.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={brand.logoUrl}
+            alt={brand.name}
+            className="flex-shrink-0 object-cover"
+            style={{ width: 28, height: 28, borderRadius: 7 }}
+          />
+        ) : (
+          <span
+            className="flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0"
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              background: brand.tint,
+            }}
+          >
+            {brand.short}
+          </span>
+        )}
         <div className="text-left">
           <div
             className="text-[13.5px] font-semibold leading-none"
@@ -145,12 +155,22 @@ export function BrandSwitcher() {
                       (e.currentTarget as HTMLButtonElement).style.background = "transparent";
                   }}
                 >
-                  <span
-                    className="flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0"
-                    style={{ width: 30, height: 30, borderRadius: 8, background: b.tint }}
-                  >
-                    {b.short}
-                  </span>
+                  {b.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={b.logoUrl}
+                      alt={b.name}
+                      className="flex-shrink-0 object-cover"
+                      style={{ width: 30, height: 30, borderRadius: 8 }}
+                    />
+                  ) : (
+                    <span
+                      className="flex items-center justify-center text-white font-bold text-[12px] flex-shrink-0"
+                      style={{ width: 30, height: 30, borderRadius: 8, background: b.tint }}
+                    >
+                      {b.short}
+                    </span>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div
                       className="text-[13.5px] font-semibold"
@@ -159,7 +179,7 @@ export function BrandSwitcher() {
                       {b.name}
                     </div>
                     <div className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                      {b.industry} · {b.plan}
+                      {b.industry}
                     </div>
                   </div>
                   {b.id === brand.id && (

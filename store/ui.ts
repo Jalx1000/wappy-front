@@ -16,6 +16,9 @@ export type Brand = {
   reach: string;
   eng: string;
   spend: string;
+  // Presentes solo en marcas reales del backend (no en mocks).
+  slug?: string;
+  logoUrl?: string | null;
 };
 
 export type UploadedAsset = {

@@ -170,8 +170,3 @@ export const MOCK_ACCOUNTS: Record<string, Array<{ id: string; name: string; met
   ga4:       [{ id: "a1", name: "Propiedad GA4",    meta: "sitio web · GA4" }],
   website:   [{ id: "a1", name: "Dominio verificado", meta: "Script instalado" }],
 };
-
-// ── Brands page extras ────────────────────────────────────────────────────────
-export const BRAND_DELTAS: Record<string, number> = {
-  auto: 14.2, food: 9.1, bank: 6.4, retail: 11.7,
-};

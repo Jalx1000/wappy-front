@@ -6,9 +6,14 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Icon } from "@/components/ui/Icon";
-import { useCreateBrand } from "@/lib/hooks";
+import { useCreateBrand, useUpdateBrand } from "@/lib/hooks";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/api/client";
+import { filesApi, UploadError } from "@/lib/api/files";
+import { useUIStore } from "@/store/ui";
+import type { Brand } from "@/store/ui";
+
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
 
 const schema = z.object({
   name: z
@@ -46,13 +51,24 @@ const inputStyle: React.CSSProperties = {
 
 interface Props {
   onClose: () => void;
+  /** Si viene, el modal edita esta marca en vez de crear una nueva. */
+  brand?: Brand;
 }
 
-export function AddBrandModal({ onClose }: Props) {
+export function AddBrandModal({ onClose, brand }: Props) {
+  const isEdit = !!brand;
   const toast = useToast();
   const create = useCreateBrand();
-  const [slugTouched, setSlugTouched] = useState(false);
+  const update = useUpdateBrand();
+  const { activeBrand, setActiveBrand } = useUIStore();
+  // En edición el slug ya existe: nunca lo regeneramos desde el nombre.
+  const [slugTouched, setSlugTouched] = useState(isEdit);
   const [serverErr, setServerErr] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(
+    brand?.logoUrl ?? null,
+  );
+  const [logoRemoved, setLogoRemoved] = useState(false);
 
   const {
     register,
@@ -61,8 +77,37 @@ export function AddBrandModal({ onClose }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", slug: "", description: "" },
+    defaultValues: {
+      name: brand?.name ?? "",
+      slug: brand?.slug ?? (brand ? slugify(brand.name) : ""),
+      description:
+        brand && brand.industry !== "—" ? brand.industry : "",
+    },
   });
+
+  const onPickLogo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!/\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)) {
+      setServerErr("Formato no permitido. Usa JPG, PNG, GIF o WEBP.");
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setServerErr("La imagen supera los 5MB.");
+      return;
+    }
+    setServerErr(null);
+    setLogoFile(file);
+    setLogoRemoved(false);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const onRemoveLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    setLogoRemoved(true);
+  };
 
   const nameReg = register("name");
   const slugReg = register("slug");
@@ -76,14 +121,55 @@ export function AddBrandModal({ onClose }: Props) {
   const submit = async (data: FormData) => {
     setServerErr(null);
     try {
-      const brand = await create.mutateAsync({
-        name: data.name.trim(),
-        slug: data.slug.trim(),
-        description: data.description?.trim() || undefined,
-      });
-      toast(`Marca "${brand.name}" creada`);
+      // El logo se sube primero a /files/upload; el PATCH/POST de la marca
+      // solo guarda la ruta resultante. undefined = no tocar el logo actual.
+      let logoPath: string | null | undefined = undefined;
+      if (logoFile) {
+        logoPath = (await filesApi.upload(logoFile)).path;
+      } else if (logoRemoved) {
+        logoPath = null;
+      }
+
+      if (isEdit && brand) {
+        const desc = data.description?.trim();
+        const updated = await update.mutateAsync({
+          id: brand.id,
+          data: {
+            name: data.name.trim(),
+            slug: data.slug.trim(),
+            description: desc || null,
+            ...(logoPath !== undefined ? { logoPath } : {}),
+          },
+        });
+        // La marca activa vive en el store persistido: sincronizarla para que
+        // el switcher no muestre el nombre/logo viejos.
+        if (activeBrand?.id === brand.id) {
+          // Solo los campos editados: updated viene de mapBackendBrand y
+          // trae tint/short recalculados que no queremos pisar en el store.
+          setActiveBrand({
+            ...activeBrand,
+            name: updated.name,
+            industry: updated.industry,
+            slug: updated.slug,
+            logoUrl: updated.logoUrl,
+          });
+        }
+        toast(`Marca "${updated.name}" actualizada`);
+      } else {
+        const created = await create.mutateAsync({
+          name: data.name.trim(),
+          slug: data.slug.trim(),
+          description: data.description?.trim() || undefined,
+          ...(logoPath !== undefined ? { logoPath } : {}),
+        });
+        toast(`Marca "${created.name}" creada`);
+      }
       onClose();
     } catch (e) {
+      if (e instanceof UploadError) {
+        setServerErr(e.message);
+        return;
+      }
       if (e instanceof ApiError) {
         if (e.status === 409) {
           setServerErr(`El slug "${data.slug}" ya existe.`);
@@ -95,10 +181,17 @@ export function AddBrandModal({ onClose }: Props) {
           setServerErr(first ?? e.message);
           return;
         }
-        setServerErr(e.message || "Error al crear la marca");
+        setServerErr(
+          e.message ||
+            (isEdit ? "Error al actualizar la marca" : "Error al crear la marca"),
+        );
         return;
       }
-      setServerErr("Error inesperado al crear la marca");
+      setServerErr(
+        isEdit
+          ? "Error inesperado al actualizar la marca"
+          : "Error inesperado al crear la marca",
+      );
     }
   };
 
@@ -135,20 +228,22 @@ export function AddBrandModal({ onClose }: Props) {
               color: "var(--color-primary-ink)",
             }}
           >
-            <Icon name="plus" size={18} />
+            <Icon name={isEdit ? "edit" : "plus"} size={18} />
           </div>
           <div className="flex-1">
             <div
               className="font-bold text-[16px]"
               style={{ color: "var(--color-text-primary)" }}
             >
-              Nueva marca
+              {isEdit ? "Editar marca" : "Nueva marca"}
             </div>
             <div
               className="text-[12px]"
               style={{ color: "var(--color-text-tertiary)" }}
             >
-              Agrega una marca a tu cartera
+              {isEdit
+                ? "Actualiza los datos y el logo de la marca"
+                : "Agrega una marca a tu cartera"}
             </div>
           </div>
           <button
@@ -222,6 +317,59 @@ export function AddBrandModal({ onClose }: Props) {
             />
           </Field>
 
+          <Field label="Logo" hint="JPG, PNG, GIF o WEBP — máx. 5MB, opcional">
+            <div className="flex items-center gap-3">
+              {logoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={logoPreview}
+                  alt="Logo de la marca"
+                  className="object-cover flex-shrink-0"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 10,
+                    border: "1px solid var(--color-border)",
+                  }}
+                />
+              ) : (
+                <div
+                  className="flex items-center justify-center flex-shrink-0"
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 10,
+                    background: "var(--color-background)",
+                    border: "1px dashed var(--color-border)",
+                    color: "var(--color-text-tertiary)",
+                  }}
+                >
+                  <Icon name="image" size={18} />
+                </div>
+              )}
+              <label className="fobo-btn fobo-btn-secondary fobo-btn-sm cursor-pointer">
+                {logoPreview ? "Cambiar" : "Subir imagen"}
+                <input
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.gif,.webp"
+                  className="hidden"
+                  onChange={onPickLogo}
+                  disabled={isSubmitting}
+                />
+              </label>
+              {logoPreview && (
+                <button
+                  type="button"
+                  onClick={onRemoveLogo}
+                  disabled={isSubmitting}
+                  className="fobo-btn fobo-btn-ghost fobo-btn-sm"
+                >
+                  Quitar
+                </button>
+              )}
+            </div>
+          </Field>
+
           <div className="flex gap-2 mt-5">
             <button
               type="button"
@@ -236,7 +384,13 @@ export function AddBrandModal({ onClose }: Props) {
               disabled={isSubmitting}
               className="fobo-btn fobo-btn-primary fobo-btn-sm flex-1"
             >
-              {isSubmitting ? "Creando…" : "Crear marca"}
+              {isSubmitting
+                ? isEdit
+                  ? "Guardando…"
+                  : "Creando…"
+                : isEdit
+                  ? "Guardar cambios"
+                  : "Crear marca"}
             </button>
           </div>
         </form>

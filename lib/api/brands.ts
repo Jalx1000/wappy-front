@@ -10,6 +10,7 @@ type BackendBrand = {
   slug: string;
   description?: string | null;
   isActive?: boolean;
+  logoPath?: string | null;
 };
 
 const PALETTE = [
@@ -44,6 +45,8 @@ function mapBackendBrand(b: BackendBrand, idx: number): Brand {
     reach: "—",
     eng: "—",
     spend: "—",
+    slug: b.slug,
+    logoUrl: b.logoPath ?? null,
   };
 }
 
@@ -170,16 +173,63 @@ type UpdateConnectionDto = Partial<CreateConnectionDto>;
 export type CreateBrandDto = {
   name: string;
   slug: string;
-  description?: string;
+  description?: string | null;
   isActive?: boolean;
+  logoPath?: string | null;
 };
 
 export type UpdateBrandDto = Partial<CreateBrandDto>;
+
+// ── Brands overview (métricas reales por marca, últimos 30d) ────────────────
+
+type BackendBrandOverview = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  isActive: boolean;
+  logoPath: string | null;
+  channels: BackendChannel[];
+  connectionsCount: number;
+  membersCount: number;
+  metrics: {
+    followers: number;
+    reach: number;
+    interactions: number;
+    engagementRate: number;
+    spend: number;
+  };
+  delta: { metric: "reach" | "interactions" | "spend"; pct: number } | null;
+};
+
+export type BrandOverview = Omit<
+  BackendBrandOverview,
+  "id" | "channels" | "logoPath"
+> & {
+  id: string;
+  logoUrl: string | null;
+  channels: string[]; // claves UI para ChannelDot
+};
+
+function mapBrandOverview(o: BackendBrandOverview): BrandOverview {
+  const { logoPath, ...rest } = o;
+  return {
+    ...rest,
+    id: String(o.id),
+    logoUrl: logoPath,
+    channels: o.channels.map((c) => CHANNEL_BACKEND_TO_UI[c] ?? c),
+  };
+}
 
 export const brandsApi = {
   list: async () => {
     const raw = await api.get<BackendBrand[]>("/brands");
     return raw.map(mapBackendBrand);
+  },
+
+  overview: async () => {
+    const raw = await api.get<BackendBrandOverview[]>("/brands-overview");
+    return raw.map(mapBrandOverview);
   },
 
   create: async (dto: CreateBrandDto) => {

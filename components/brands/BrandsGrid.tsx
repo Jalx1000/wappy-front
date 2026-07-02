@@ -7,15 +7,24 @@ import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
 import { ChannelDot } from "@/components/ui/ChannelDot";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Segmented } from "@/components/ui/Segmented";
 import { useToast } from "@/components/ui/Toast";
 import { useUIStore } from "@/store/ui";
-import { useBrands, useDeleteBrand } from "@/lib/hooks";
-import { BRAND_DELTAS } from "@/lib/mocks/data";
+import { useBrands, useBrandsOverview, useDeleteBrand } from "@/lib/hooks";
+import type { BrandOverview } from "@/lib/api/brands";
 import type { Brand } from "@/store/ui";
 import { AddBrandModal } from "./AddBrandModal";
 
-const PLANS = ["360°", "Social + Ads", "Social"];
+function fmtNum(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(Math.round(n));
+}
+
+const DELTA_LABEL: Record<string, string> = {
+  reach: "alcance",
+  interactions: "interacciones",
+  spend: "inversión",
+};
 
 const container = {
   hidden: {},
@@ -29,19 +38,20 @@ const item = {
 export function BrandsGrid() {
   const { activeBrand, setActiveBrand } = useUIStore();
   const [search, setSearch] = useState("");
-  const [planFilter, setPlanFilter] = useState("all");
   const [addOpen, setAddOpen] = useState(false);
+  const [editBrand, setEditBrand] = useState<Brand | null>(null);
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const toast = useToast();
   const router = useRouter();
   const { data: brands = [] } = useBrands();
+  const { data: overview = [] } = useBrandsOverview();
   const deleteBrand = useDeleteBrand();
+
+  const ovById = new Map<string, BrandOverview>(overview.map((o) => [o.id, o]));
 
   const shown = brands.filter((b) => {
     const q = search.trim().toLowerCase();
-    const matchQ = !q || (b.name + " " + b.industry).toLowerCase().includes(q);
-    const matchP = planFilter === "all" || b.plan === planFilter;
-    return matchQ && matchP;
+    return !q || (b.name + " " + b.industry).toLowerCase().includes(q);
   });
 
   const handleOpen = (b: Brand) => {
@@ -114,15 +124,6 @@ export function BrandsGrid() {
               </button>
             )}
           </div>
-          <Segmented
-            options={[
-              { v: "all", l: "Todas" },
-              ...PLANS.map((p) => ({ v: p, l: p })),
-            ]}
-            value={planFilter}
-            onChange={setPlanFilter}
-            sm
-          />
           <button
             onClick={() => setAddOpen(true)}
             className="fobo-btn fobo-btn-primary fobo-btn-sm flex items-center gap-1"
@@ -145,7 +146,7 @@ export function BrandsGrid() {
             search ? (
               <button
                 className="fobo-btn fobo-btn-secondary fobo-btn-sm"
-                onClick={() => { setSearch(""); setPlanFilter("all"); }}
+                onClick={() => setSearch("")}
               >
                 Limpiar filtros
               </button>
@@ -166,7 +167,22 @@ export function BrandsGrid() {
         >
           {shown.map((b) => {
             const isActive = b.id === activeBrand?.id;
-            const delta = BRAND_DELTAS[b.id] ?? 0;
+            const ov = ovById.get(b.id);
+            const logoUrl = ov?.logoUrl ?? b.logoUrl ?? null;
+            const channels = ov?.channels ?? b.channels;
+            const metricCells = ov
+              ? [
+                  { l: "Seguidores", v: fmtNum(ov.metrics.followers) },
+                  { l: "Alcance", v: fmtNum(ov.metrics.reach) },
+                  { l: "Engagement", v: `${ov.metrics.engagementRate.toFixed(1)}%` },
+                  { l: "Inversión", v: `$${fmtNum(ov.metrics.spend)}` },
+                ]
+              : [
+                  { l: "Seguidores", v: "—" },
+                  { l: "Alcance", v: "—" },
+                  { l: "Engagement", v: "—" },
+                  { l: "Inversión", v: "—" },
+                ];
             return (
               <motion.div key={b.id} variants={item}>
                 <div
@@ -186,12 +202,25 @@ export function BrandsGrid() {
                 >
                   {/* Top row */}
                   <div className="flex items-center gap-3 mb-4">
-                    <span
-                      className="flex items-center justify-center text-white font-bold text-[17px] flex-shrink-0"
-                      style={{ width: 48, height: 48, borderRadius: 12, background: b.tint }}
-                    >
-                      {b.short}
-                    </span>
+                    {logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={logoUrl}
+                        alt={b.name}
+                        className="flex-shrink-0 object-cover"
+                        style={{
+                          width: 48, height: 48, borderRadius: 12,
+                          border: "1px solid var(--color-border)",
+                        }}
+                      />
+                    ) : (
+                      <span
+                        className="flex items-center justify-center text-white font-bold text-[17px] flex-shrink-0"
+                        style={{ width: 48, height: 48, borderRadius: 12, background: b.tint }}
+                      >
+                        {b.short}
+                      </span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span
@@ -203,17 +232,19 @@ export function BrandsGrid() {
                         {isActive && <Badge variant="primary">Activa</Badge>}
                       </div>
                       <div className="text-[12.5px]" style={{ color: "var(--color-text-tertiary)" }}>
-                        {b.industry} · plan {b.plan} · {b.team} en el equipo
+                        {b.industry}
+                        {ov && ` · ${ov.connectionsCount} ${ov.connectionsCount === 1 ? "conexión" : "conexiones"}`}
+                        {ov && ` · ${ov.membersCount} en el equipo`}
                       </div>
                     </div>
                     {/* Channel pills */}
                     <div className="flex items-center flex-shrink-0">
-                      {b.channels.slice(0, 4).map((ch, i) => (
+                      {channels.slice(0, 4).map((ch, i) => (
                         <span key={ch} style={{ marginLeft: i ? -7 : 0, zIndex: 4 - i }}>
                           <ChannelDot channel={ch} size={26} radius={9999} />
                         </span>
                       ))}
-                      {b.channels.length > 4 && (
+                      {channels.length > 4 && (
                         <span
                           className="flex items-center justify-center text-[10px] font-bold"
                           style={{
@@ -224,7 +255,7 @@ export function BrandsGrid() {
                             marginLeft: -7,
                           }}
                         >
-                          +{b.channels.length - 4}
+                          +{channels.length - 4}
                         </span>
                       )}
                     </div>
@@ -262,6 +293,23 @@ export function BrandsGrid() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setEditBrand({ ...b, logoUrl });
+                                setMenuOpenId(null);
+                              }}
+                              className="flex items-center gap-2 w-full px-3 py-[9px] rounded-[8px] text-[13px] font-medium border-none cursor-pointer text-left"
+                              style={{
+                                background: "transparent",
+                                color: "var(--color-text-primary)",
+                                fontFamily: "var(--font-ui)",
+                              }}
+                              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-background)")}
+                              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.background = "transparent")}
+                            >
+                              <Icon name="edit" size={14} /> Editar marca
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 handleDelete(b);
                               }}
                               className="flex items-center gap-2 w-full px-3 py-[9px] rounded-[8px] text-[13px] font-medium border-none cursor-pointer text-left"
@@ -283,12 +331,7 @@ export function BrandsGrid() {
 
                   {/* Metrics band */}
                   <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
-                    {[
-                      { l: "Seguidores", v: b.followers },
-                      { l: "Alcance", v: b.reach },
-                      { l: "Engagement", v: b.eng },
-                      { l: "Inversión", v: b.spend },
-                    ].map(({ l, v }) => (
+                    {metricCells.map(({ l, v }) => (
                       <div
                         key={l}
                         className="rounded-[10px] px-3 py-[10px]"
@@ -317,13 +360,28 @@ export function BrandsGrid() {
                     className="flex items-center justify-between mt-4 pt-3"
                     style={{ borderTop: "1px solid var(--color-border)" }}
                   >
-                    <div
-                      className="inline-flex items-center gap-[5px] text-[12px] font-semibold"
-                      style={{ color: "var(--color-success)" }}
-                    >
-                      <Icon name="arrowUp" size={12} color="var(--color-success)" />
-                      {delta}% vs. mes anterior
-                    </div>
+                    {ov?.delta ? (
+                      <div
+                        className="inline-flex items-center gap-[5px] text-[12px] font-semibold"
+                        style={{
+                          color: ov.delta.pct >= 0 ? "var(--color-success)" : "var(--color-error)",
+                        }}
+                      >
+                        <Icon
+                          name={ov.delta.pct >= 0 ? "arrowUp" : "arrowDown"}
+                          size={12}
+                          color={ov.delta.pct >= 0 ? "var(--color-success)" : "var(--color-error)"}
+                        />
+                        {ov.delta.pct}% {DELTA_LABEL[ov.delta.metric]} vs. mes anterior
+                      </div>
+                    ) : (
+                      <div
+                        className="text-[12px]"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                      >
+                        Sin datos del mes anterior
+                      </div>
+                    )}
                     <button
                       className="fobo-btn fobo-btn-ghost fobo-btn-sm gap-1"
                       onClick={(e) => { e.stopPropagation(); handleOpen(b); }}
@@ -340,6 +398,12 @@ export function BrandsGrid() {
 
       <AnimatePresence>
         {addOpen && <AddBrandModal onClose={() => setAddOpen(false)} />}
+        {editBrand && (
+          <AddBrandModal
+            brand={editBrand}
+            onClose={() => setEditBrand(null)}
+          />
+        )}
       </AnimatePresence>
     </div>
   );
