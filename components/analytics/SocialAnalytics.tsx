@@ -57,13 +57,13 @@ function SocialSkeleton() {
 // point at a non-image, so on load error we show the placeholder, not a blank.
 function PostThumb({ url, ch, caption }: { url: string | null | undefined; ch: string; caption: string }) {
   const [errored, setErrored] = useState(false);
-  if (!url || errored) return <ImagePlaceholder height={140} label={`post · ${ch}`} />;
+  if (!url || errored) return <ImagePlaceholder height={400} label={`post · ${ch}`} />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src={url}
       alt={caption}
-      style={{ width: "100%", height: 140, objectFit: "cover", display: "block" }}
+      style={{ width: "100%", height: 400, objectFit: "contain", display: "block" }}
       onError={() => setErrored(true)}
     />
   );
