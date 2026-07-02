@@ -171,21 +171,6 @@ export const MOCK_ACCOUNTS: Record<string, Array<{ id: string; name: string; met
   website:   [{ id: "a1", name: "Dominio verificado", meta: "Script instalado" }],
 };
 
-// ── Dashboard chart data ──────────────────────────────────────────────────────
-export const DASH_SERIES = {
-  reach: { label: "Alcance",        color: "#0D5CA6", k: 1000, data: [128,142,135,168,154,182,176,198,205,221,214,242,238,261] },
-  inter: { label: "Interacciones",  color: "#34BDF6", k: 1000, data: [38,44,41,52,49,58,55,64,61,72,69,78,74,86] },
-  fans:  { label: "Seguidores",     color: "#1E8A5B", k: 21.5, data: [12,15,14,19,22,21,26,28,31,34,36,40,44,48] },
-};
-
-export const TREND_LABELS = ["1","","","","5","","","","9","","","","13","14"];
-
-export const SOCIAL_NETWORKS = [
-  { ch: "facebook",  followers: "142K", posts: 24, eng: "4.2%", growth: 3.1 },
-  { ch: "instagram", followers: "98K",  posts: 31, eng: "6.8%", growth: 7.4 },
-  { ch: "tiktok",    followers: "44K",  posts: 18, eng: "9.2%", growth: 12.1 },
-];
-
 // ── Brands page extras ────────────────────────────────────────────────────────
 export const BRAND_DELTAS: Record<string, number> = {
   auto: 14.2, food: 9.1, bank: 6.4, retail: 11.7,

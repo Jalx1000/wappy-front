@@ -13,44 +13,39 @@ import {
   useBrands,
   useDashboard,
   useDashboardSeries,
+  useChannelSummaries,
+  useAgencySummaries,
   useConnections,
   useMe,
+  type ChannelSummary,
 } from "@/lib/hooks";
 import { CHANNEL_META } from "@/lib/mocks/data";
+import { pickSeries } from "@/lib/dashboard/kpis";
+import { agencyTotals } from "@/lib/dashboard/agency";
 import { Skeleton } from "@/components/ui/Skeleton";
-import {
-  BRANDS as BRANDS_FALLBACK,
-  DASH_SERIES,
-  TREND_LABELS,
-  SOCIAL_NETWORKS,
-  BRAND_DELTAS,
-} from "@/lib/mocks/data";
+import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type Period = "7d" | "30d" | "90d";
 type View   = "brand" | "agency";
-type Metric = keyof typeof DASH_SERIES;
+
+// Chart metrics the brand view can plot. `backendKey` maps each to a real series
+// returned by GET /analytics/social/overview (series.{reach,engagement,...}); there
+// is no organic followers timeseries, so only reach/interactions are offered.
+// `fallbackKey` is used when a channel doesn't expose the primary metric as a
+// series — e.g. TikTok reports `impressions` but not `reach` — so the chart isn't
+// left blank (same fallback the analytics page uses).
+const METRICS = {
+  reach: { label: "Alcance",       color: "#0D5CA6", backendKey: "reach",      fallbackKey: "impressions" },
+  inter: { label: "Interacciones", color: "#34BDF6", backendKey: "engagement", fallbackKey: "total_interactions" },
+} as const;
+type Metric = keyof typeof METRICS;
 
 const PERIODS: Record<Period, { label: string; mult: number; days: number; vs: string }> = {
   "7d":  { label: "7 días",  mult: 0.32, days: 7,  vs: "vs. semana previa" },
   "30d": { label: "30 días", mult: 1,    days: 30, vs: "vs. mes anterior" },
   "90d": { label: "90 días", mult: 2.85, days: 90, vs: "vs. trimestre previo" },
 };
-
-const KPI_META = [
-  { id: "reach", goal: 82, goalLabel: "82% del objetivo mensual", vs: "vs. mes anterior" },
-  { id: "eng",   goal: 96, goalLabel: "Meta 5.0%",                vs: "vs. mes anterior" },
-  { id: "fans",  goal: 68, goalLabel: "68% del objetivo",         vs: "vs. mes anterior" },
-  { id: "roas",  goal: 74, goalLabel: "Meta 5.0x",                vs: "vs. mes anterior" },
-];
-
-function parseNum(s: string) {
-  const m = String(s).replace(/[$,\s]/g, "").match(/([\d.]+)\s*([KMB]?)/i);
-  if (!m) return 0;
-  const n = parseFloat(m[1]);
-  const u = (m[2] || "").toUpperCase();
-  return n * (u === "B" ? 1e9 : u === "M" ? 1e6 : u === "K" ? 1e3 : 1);
-}
 
 function humanize(n: number, pre = "") {
   if (n >= 1e6) return pre + (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
@@ -96,12 +91,13 @@ export function Dashboard() {
   const [metric, setMetric] = useState<Metric>("reach");
 
   const P = PERIODS[period];
-  const S = DASH_SERIES[metric];
+  const S = METRICS[metric];
 
   const { data: dashData, isPending } = useDashboard(brand?.id, P.days);
   const { data: conns = [] } = useConnections(brand?.id);
   const firstConnId = conns[0]?.id;
   const { data: realSeries } = useDashboardSeries(brand?.id, firstConnId, P.days);
+  const channels = useChannelSummaries(brand?.id, conns, P.days);
 
   const kpis = dashData?.kpis ?? [];
 
@@ -116,33 +112,17 @@ export function Dashboard() {
 
   if (isPending) return <DashboardSkeleton />;
 
-  // Map UI metric to backend series key.
-  const METRIC_TO_BACKEND: Record<Metric, string | null> = {
-    reach: "reach",
-    inter: "likes",
-    fans: null,
-  };
-  const backendKey = METRIC_TO_BACKEND[metric];
-  const realSeriesPoints =
-    backendKey && realSeries?.[backendKey]
-      ? realSeries[backendKey]
-      : null;
-
-  // Build chart data: real series if available, mock fallback otherwise.
-  let chartData: Array<{ label: string; value: number }>;
-  if (realSeriesPoints && realSeriesPoints.length) {
-    chartData = realSeriesPoints.map((p) => ({
-      label: p.date.slice(5), // "MM-DD"
-      value: p.value,
-    }));
-  } else {
-    const rawData = P.days === 7 ? S.data.slice(-7) : S.data;
-    const rawLabels = P.days === 7 ? ["", "", "", "", "", "", "Hoy"] : TREND_LABELS;
-    chartData = rawData.map((v, i) => ({
-      label: rawLabels[i],
-      value: v * S.k * P.mult,
-    }));
-  }
+  // Chart data comes only from the real backend series for the active metric.
+  // pickSeries prefers the primary series and falls back (e.g. TikTok has no
+  // `reach`, only `impressions`); [] → honest empty state, no fabricated numbers.
+  const chartData: Array<{ label: string; value: number }> = pickSeries(
+    realSeries,
+    S.backendKey,
+    S.fallbackKey,
+  ).map((p) => ({
+    label: p.date.slice(5), // "MM-DD"
+    value: p.value,
+  }));
 
   const criticalAlert = alerts.find((a) => a.type === "err");
 
@@ -226,16 +206,16 @@ export function Dashboard() {
       )}
 
       {view === "agency" ? (
-        <AgencyView period={period} P={P} brands={brands} alerts={alerts} />
+        <AgencyView P={P} brands={brands} />
       ) : (
         <BrandView
           brand={brand}
-          period={period}
           P={P}
           metric={metric}
           setMetric={setMetric}
           S={S}
           chartData={chartData}
+          channels={channels}
           kpis={kpis}
           alerts={alerts}
         />
@@ -245,15 +225,15 @@ export function Dashboard() {
 }
 
 // ── Brand view ─────────────────────────────────────────────────────────────────
-function BrandView({ brand, P, metric, setMetric, S, chartData, kpis, alerts }: {
+function BrandView({ brand, P, metric, setMetric, S, chartData, channels, kpis, alerts }: {
   brand: ReturnType<typeof useBrands>["data"] extends (infer T)[] | undefined ? T : never;
-  period: Period;
   P: typeof PERIODS[Period];
   metric: Metric;
   setMetric: (m: Metric) => void;
-  S: typeof DASH_SERIES[Metric];
+  S: typeof METRICS[Metric];
   chartData: Array<{ label: string; value: number }>;
-  kpis: { id: string; label: string; value: string; delta: number; spark: number[] }[];
+  channels: ChannelSummary[];
+  kpis: { id: string; label: string; value: string; delta: number; spark: number[]; prevValue?: string }[];
   alerts: { type: string; text: string; brand: string }[];
 }) {
   return (
@@ -266,21 +246,18 @@ function BrandView({ brand, P, metric, setMetric, S, chartData, kpis, alerts }: 
         className="grid gap-4 mb-5"
         style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
       >
-        {kpis.map((kpi) => {
-          const meta = KPI_META.find((m) => m.id === kpi.id)!;
-          return (
-            <motion.div key={kpi.id} variants={fadeUp}>
-              <KpiCard
-                label={kpi.label}
-                value={kpi.value}
-                delta={kpi.delta}
-                spark={kpi.spark}
-                goal={meta?.goal ?? 0}
-                goalLabel={meta?.goalLabel ?? ""}
-              />
-            </motion.div>
-          );
-        })}
+        {kpis.map((kpi) => (
+          <motion.div key={kpi.id} variants={fadeUp}>
+            <KpiCard
+              label={kpi.label}
+              value={kpi.value}
+              delta={kpi.delta}
+              spark={kpi.spark}
+              deltaLabel={P.vs}
+              prevValue={kpi.prevValue}
+            />
+          </motion.div>
+        ))}
       </motion.div>
 
       {/* Main chart + side panels */}
@@ -306,7 +283,7 @@ function BrandView({ brand, P, metric, setMetric, S, chartData, kpis, alerts }: 
             </div>
             <Segmented
               sm
-              options={Object.entries(DASH_SERIES).map(([k, v]) => ({
+              options={Object.entries(METRICS).map(([k, v]) => ({
                 v: k,
                 l: v.label,
                 dot: v.color,
@@ -315,56 +292,72 @@ function BrandView({ brand, P, metric, setMetric, S, chartData, kpis, alerts }: 
               onChange={(v) => setMetric(v as Metric)}
             />
           </div>
-          <div className="px-5 pt-4 pb-3">
-            <AreaChart data={chartData} color={S.color} height={210} />
-          </div>
-          {/* Summary row */}
-          <div
-            className="grid gap-0 px-5 pb-5"
-            style={{
-              gridTemplateColumns: "repeat(3, 1fr)",
-              borderTop: "1px solid var(--color-border)",
-              paddingTop: 14,
-            }}
-          >
-            {(() => {
-              const vals = chartData.map((d) => d.value);
-              const sum  = vals.reduce((a, b) => a + b, 0);
-              const avg  = sum / vals.length;
-              const best = Math.max(...vals);
-              return [
-                { label: "Total período",   val: humanize(sum) },
-                { label: "Promedio diario", val: humanize(avg) },
-                { label: "Mejor día",       val: humanize(best) },
-              ];
-            })().map(({ label, val }, i) => (
+          {chartData.length > 0 ? (
+            <>
+              <div className="px-5 pt-4 pb-3">
+                <AreaChart data={chartData} color={S.color} height={210} />
+              </div>
+              {/* Summary row */}
               <div
-                key={label}
-                className="py-3"
+                className="grid gap-0 px-5 pb-5"
                 style={{
-                  paddingLeft: i ? 16 : 0,
-                  borderLeft: i ? "1px solid var(--color-border)" : "none",
-                  marginLeft: i ? 16 : 0,
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  borderTop: "1px solid var(--color-border)",
+                  paddingTop: 14,
                 }}
               >
-                <div className="text-[11.5px] mb-[4px]" style={{ color: "var(--color-text-tertiary)" }}>
-                  {label}
-                </div>
-                <div
-                  className="tnum leading-none"
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    fontWeight: 600,
-                    fontSize: 20,
-                    letterSpacing: "-0.02em",
-                    color: "var(--color-text-primary)",
-                  }}
-                >
-                  {val}
-                </div>
+                {(() => {
+                  const vals = chartData.map((d) => d.value);
+                  const sum  = vals.reduce((a, b) => a + b, 0);
+                  const avg  = sum / vals.length;
+                  const best = Math.max(...vals);
+                  return [
+                    { label: "Total período",   val: humanize(sum) },
+                    { label: "Promedio diario", val: humanize(avg) },
+                    { label: "Mejor día",       val: humanize(best) },
+                  ];
+                })().map(({ label, val }, i) => (
+                  <div
+                    key={label}
+                    className="py-3"
+                    style={{
+                      paddingLeft: i ? 16 : 0,
+                      borderLeft: i ? "1px solid var(--color-border)" : "none",
+                      marginLeft: i ? 16 : 0,
+                    }}
+                  >
+                    <div className="text-[11.5px] mb-[4px]" style={{ color: "var(--color-text-tertiary)" }}>
+                      {label}
+                    </div>
+                    <div
+                      className="tnum leading-none"
+                      style={{
+                        fontFamily: "var(--font-display)",
+                        fontWeight: 600,
+                        fontSize: 20,
+                        letterSpacing: "-0.02em",
+                        color: "var(--color-text-primary)",
+                      }}
+                    >
+                      {val}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </>
+          ) : (
+            <div
+              className="flex flex-col items-center justify-center text-center px-5"
+              style={{ height: 210 + 72 }}
+            >
+              <div className="text-[13px] font-medium" style={{ color: "var(--color-text-secondary)" }}>
+                Sin datos de {S.label.toLowerCase()} para este período
+              </div>
+              <div className="text-[12px] mt-1" style={{ color: "var(--color-text-tertiary)" }}>
+                Se mostrará en cuanto la conexión sincronice datos.
+              </div>
+            </div>
+          )}
         </motion.div>
 
         {/* Right column: channel + alerts */}
@@ -391,43 +384,48 @@ function BrandView({ brand, P, metric, setMetric, S, chartData, kpis, alerts }: 
               </a>
             </div>
             <div className="px-2 py-1">
-              {SOCIAL_NETWORKS.map((nw, i) => (
+              {channels.length === 0 ? (
                 <div
-                  key={nw.ch}
-                  className="flex items-center gap-3 px-3 py-[10px] rounded-[8px] cursor-pointer"
-                  style={{
-                    borderBottom:
-                      i < SOCIAL_NETWORKS.length - 1 ? "1px solid var(--color-border)" : "none",
-                  }}
-                  onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "var(--color-background)")}
-                  onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
+                  className="px-3 py-6 text-center text-[12.5px]"
+                  style={{ color: "var(--color-text-tertiary)" }}
                 >
-                  <ChannelDot channel={nw.ch} size={30} radius={8} />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-                      {nw.ch.charAt(0).toUpperCase() + nw.ch.slice(1)}
-                    </div>
-                    <div className="text-[11px]" style={{ color: "var(--color-text-tertiary)" }}>
-                      {nw.followers} · {nw.posts} posts
-                    </div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div
-                      className="text-[13px] font-bold tnum"
-                      style={{ color: "var(--color-secondary-ink)" }}
-                    >
-                      {nw.eng}
-                    </div>
-                    <div
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold"
-                      style={{ color: "var(--color-success)" }}
-                    >
-                      <Icon name="arrowUp" size={10} color="var(--color-success)" />
-                      {nw.growth}%
-                    </div>
-                  </div>
+                  Conecta una red social para ver métricas por canal.
                 </div>
-              ))}
+              ) : (
+                channels.map((nw, i) => (
+                  <div
+                    key={nw.connectionId}
+                    className="flex items-center gap-3 px-3 py-[10px] rounded-[8px] cursor-pointer"
+                    style={{
+                      borderBottom:
+                        i < channels.length - 1 ? "1px solid var(--color-border)" : "none",
+                    }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "var(--color-background)")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
+                  >
+                    <ChannelDot channel={nw.ch} size={30} radius={8} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+                        {CHANNEL_META[nw.ch]?.label ?? nw.ch}
+                      </div>
+                      <div className="text-[11px] truncate" style={{ color: "var(--color-text-tertiary)" }}>
+                        {nw.account ?? "—"}
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <div
+                        className="text-[13px] font-bold tnum"
+                        style={{ color: "var(--color-text-primary)" }}
+                      >
+                        {humanize(nw.followers)}
+                      </div>
+                      <div className="text-[11px] tnum" style={{ color: "var(--color-secondary-ink)" }}>
+                        {nw.engagementRate.toFixed(1)}% eng.
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </motion.div>
 
@@ -496,34 +494,47 @@ function BrandView({ brand, P, metric, setMetric, S, chartData, kpis, alerts }: 
 
 // ── Agency view ────────────────────────────────────────────────────────────────
 function AgencyView({
-  period, P, brands, alerts,
+  P, brands,
 }: {
-  period: Period;
   P: typeof PERIODS[Period];
   brands: ReturnType<typeof useBrands>["data"] extends (infer T)[] | undefined ? T[] : never;
-  alerts: { type: string; text: string; brand: string }[];
 }) {
   const { setActiveBrand } = useUIStore();
 
-  const totFollowers = brands.reduce((s, b) => s + parseNum(b.followers), 0);
-  const totReach     = brands.reduce((s, b) => s + parseNum(b.reach), 0) * P.mult;
-  const totSpend     = brands.reduce((s, b) => s + parseNum(b.spend), 0) * P.mult;
+  // Real per-brand metrics (followers/reach/engagement/spend/health), keyed by id.
+  const metrics = useAgencySummaries(brands, P.days);
+  const loading = brands.length > 0 && Object.keys(metrics).length === 0;
+
+  const rows = brands.map((b) => ({ b, m: metrics[b.id] }));
+  const totals = agencyTotals(Object.values(metrics));
 
   const agencyKpis = [
-    { label: "Marcas activas",       value: String(brands.length),             sub: `${brands.reduce((s, b) => s + b.team, 0)} personas en equipos`, icon: "brands" as const },
-    { label: "Seguidores totales",   value: humanize(totFollowers),            sub: "en todas las redes",  icon: "users" as const, delta: 8.7 },
-    { label: "Alcance combinado",    value: humanize(totReach),                sub: P.vs,                  icon: "eye" as const,   delta: 12.4 },
-    { label: "Inversión gestionada", value: humanize(totSpend, "$"),           sub: P.vs,                  icon: "megaphone" as const, delta: 5.2 },
+    { label: "Marcas activas",       value: String(brands.length),        sub: `${totals.withActivity} con actividad`,   icon: "brands" as const },
+    { label: "Seguidores totales",   value: humanize(totals.followers),   sub: "en todas las redes",                     icon: "users" as const },
+    { label: "Alcance combinado",    value: humanize(totals.reach),       sub: `últimos ${P.days} días`,                 icon: "eye" as const },
+    { label: "Inversión gestionada", value: humanize(totals.spend, "$"),  sub: `últimos ${P.days} días`,                 icon: "megaphone" as const },
   ];
 
-  const ranked = [...brands].sort((a, b) => parseNum(b.followers) - parseNum(a.followers));
-  const attnCount = (name: string) =>
-    alerts.filter((a) => a.brand === name && (a.type === "err" || a.type === "warn")).length;
-  const maxReach = brands.length ? Math.max(...brands.map((b) => parseNum(b.reach))) : 0;
-  const spenders = brands.map((b) => ({ b, v: parseNum(b.spend) }))
-    .filter((x) => x.v > 0)
-    .sort((a, b) => b.v - a.v);
-  const spendTot = spenders.reduce((s, x) => s + x.v, 0);
+  const ranked = [...rows].sort((a, b) => (b.m?.followers ?? 0) - (a.m?.followers ?? 0));
+  const maxReach = rows.reduce((mx, r) => Math.max(mx, r.m?.reach ?? 0), 0);
+  const spenders = rows
+    .filter((r) => (r.m?.spend ?? 0) > 0)
+    .sort((a, b) => (b.m?.spend ?? 0) - (a.m?.spend ?? 0));
+  const spendTot = spenders.reduce((s, r) => s + (r.m?.spend ?? 0), 0);
+
+  if (loading) {
+    return (
+      <>
+        <div className="grid grid-cols-4 gap-4 mb-5">
+          {[...Array(4)].map((_, i) => <Skeleton.KPI key={i} />)}
+        </div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+          <Skeleton.Card lines={6} />
+          <Skeleton.Card lines={6} />
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -566,15 +577,6 @@ function AgencyView({
                 {k.value}
               </div>
               <div className="flex items-center gap-[7px] mt-[9px]">
-                {"delta" in k && (
-                  <span
-                    className="inline-flex items-center gap-[2px] text-[12.5px] font-semibold"
-                    style={{ color: "var(--color-success)" }}
-                  >
-                    <Icon name="arrowUp" size={12} color="var(--color-success)" />
-                    {k.delta}%
-                  </span>
-                )}
                 <span className="text-[11.5px]" style={{ color: "var(--color-text-tertiary)" }}>
                   {k.sub}
                 </span>
@@ -623,8 +625,8 @@ function AgencyView({
               </div>
             ))}
           </div>
-          {ranked.map((b, i) => {
-            const attn = attnCount(b.name);
+          {ranked.map(({ b, m }, i) => {
+            const attn = m?.needsAttention ?? 0;
             return (
               <button
                 key={b.id}
@@ -674,27 +676,20 @@ function AgencyView({
                     className="text-[13.5px] font-bold tnum"
                     style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
                   >
-                    {b.followers}
-                  </div>
-                  <div
-                    className="inline-flex items-center gap-[2px] text-[11px] font-semibold"
-                    style={{ color: "var(--color-success)" }}
-                  >
-                    <Icon name="arrowUp" size={10} color="var(--color-success)" />
-                    {BRAND_DELTAS[b.id]}%
+                    {humanize(m?.followers ?? 0)}
                   </div>
                 </div>
                 <div
-                  className="text-right text-[13px] font-medium"
+                  className="text-right text-[13px] font-medium tnum"
                   style={{ color: "var(--color-text-secondary)" }}
                 >
-                  {b.reach}
+                  {humanize(m?.reach ?? 0)}
                 </div>
                 <div
                   className="text-right text-[13px] font-semibold tnum"
                   style={{ color: "var(--color-secondary-ink)" }}
                 >
-                  {b.eng}
+                  {(m?.engagementRate ?? 0).toFixed(1)}%
                 </div>
                 <div>
                   <span
@@ -735,42 +730,48 @@ function AgencyView({
               Pauta gestionada por marca
             </div>
             <div className="flex flex-col gap-[14px]">
-              {spenders.map(({ b, v }, i) => (
-                <div key={b.id}>
-                  <div className="flex items-center gap-[9px] mb-[6px] text-[13px]">
-                    <span
-                      className="flex items-center justify-center text-white font-bold text-[10px] flex-shrink-0"
-                      style={{ width: 22, height: 22, borderRadius: 6, background: b.tint }}
-                    >
-                      {b.short}
-                    </span>
-                    <span
-                      className="flex-1 min-w-0 truncate font-medium"
-                      style={{ color: "var(--color-text-primary)" }}
-                    >
-                      {b.name}
-                    </span>
-                    <span
-                      className="tnum font-bold flex-shrink-0"
-                      style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
-                    >
-                      {b.spend}
-                    </span>
-                  </div>
-                  <div
-                    className="h-[8px] rounded-full overflow-hidden"
-                    style={{ background: "var(--color-background)" }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-500"
-                      style={{
-                        width: `${(v / spendTot) * 100}%`,
-                        background: b.tint,
-                      }}
-                    />
-                  </div>
+              {spenders.length === 0 ? (
+                <div className="text-[12.5px] py-2" style={{ color: "var(--color-text-tertiary)" }}>
+                  Ninguna marca tiene inversión en ads registrada este período.
                 </div>
-              ))}
+              ) : (
+                spenders.map(({ b, m }) => (
+                  <div key={b.id}>
+                    <div className="flex items-center gap-[9px] mb-[6px] text-[13px]">
+                      <span
+                        className="flex items-center justify-center text-white font-bold text-[10px] flex-shrink-0"
+                        style={{ width: 22, height: 22, borderRadius: 6, background: b.tint }}
+                      >
+                        {b.short}
+                      </span>
+                      <span
+                        className="flex-1 min-w-0 truncate font-medium"
+                        style={{ color: "var(--color-text-primary)" }}
+                      >
+                        {b.name}
+                      </span>
+                      <span
+                        className="tnum font-bold flex-shrink-0"
+                        style={{ fontFamily: "var(--font-display)", color: "var(--color-text-primary)" }}
+                      >
+                        {humanize(m?.spend ?? 0, "$")}
+                      </span>
+                    </div>
+                    <div
+                      className="h-[8px] rounded-full overflow-hidden"
+                      style={{ background: "var(--color-background)" }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${((m?.spend ?? 0) / spendTot) * 100}%`,
+                          background: b.tint,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
             <div
               className="flex items-center mt-4 pt-[14px]"
@@ -808,8 +809,9 @@ function AgencyView({
               Comparativa · {P.label}
             </div>
             <div className="flex flex-col gap-[14px]">
-              {ranked.map((b) => {
-                const pct = (parseNum(b.reach) / maxReach) * 100;
+              {ranked.map(({ b, m }) => {
+                const reach = m?.reach ?? 0;
+                const pct = maxReach > 0 ? (reach / maxReach) * 100 : 0;
                 return (
                   <div key={b.id}>
                     <div className="flex items-center gap-2 mb-[5px]">
@@ -829,7 +831,7 @@ function AgencyView({
                         className="tnum font-semibold text-[12px] flex-shrink-0"
                         style={{ color: "var(--color-text-secondary)" }}
                       >
-                        {b.reach}
+                        {humanize(reach)}
                       </span>
                     </div>
                     <div

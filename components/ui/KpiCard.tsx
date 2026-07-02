@@ -32,13 +32,23 @@ interface KpiCardProps {
   value: string;
   delta: number;
   spark: number[];
+  deltaLabel?: string;
+  prevValue?: string;
   goal?: number;
   goalLabel?: string;
 }
 
-export function KpiCard({ label, value, delta, spark, goal, goalLabel }: KpiCardProps) {
+export function KpiCard({ label, value, delta, spark, deltaLabel = "vs. mes anterior", prevValue, goal, goalLabel }: KpiCardProps) {
   const pos = delta > 0;
   const col = pos ? "var(--color-success)" : "var(--color-error)";
+  // Only render the comparison chip / sparkline when there is real data to show.
+  // The brand summary endpoint returns no period-over-period comparison, so a
+  // delta of 0 means "unavailable" rather than "flat" — showing it as a red ↓0%
+  // would be misleading.
+  const hasDelta = Number.isFinite(delta) && delta !== 0;
+  const hasSpark = spark.length > 1;
+  // "vs. mes anterior" → "Mes anterior" for the previous-period value line.
+  const prevLabel = deltaLabel.replace(/^vs\.\s*/i, "").replace(/^./, (c) => c.toUpperCase());
   return (
     <div
       className="fobo-card p-[18px]"
@@ -61,21 +71,41 @@ export function KpiCard({ label, value, delta, spark, goal, goalLabel }: KpiCard
           >
             {value}
           </div>
-          <div className="flex items-center gap-[5px] mt-2">
-            <span
-              className="inline-flex items-center gap-[2px] text-[12.5px] font-semibold"
-              style={{ color: col }}
-            >
-              <Icon name={pos ? "arrowUp" : "arrowDown"} size={13} color={col} />
-              {Math.abs(delta)}%
-            </span>
-            <span className="text-[11.5px]" style={{ color: "var(--color-text-tertiary)" }}>
-              vs. mes anterior
-            </span>
-          </div>
+          {hasDelta && (
+            <div className="flex items-center gap-[5px] mt-2">
+              <span
+                className="inline-flex items-center gap-[2px] text-[12.5px] font-semibold"
+                style={{ color: col }}
+              >
+                <Icon name={pos ? "arrowUp" : "arrowDown"} size={13} color={col} />
+                {Math.abs(delta)}%
+              </span>
+              <span className="text-[11.5px]" style={{ color: "var(--color-text-tertiary)" }}>
+                {deltaLabel}
+              </span>
+            </div>
+          )}
         </div>
-        <Spark data={spark} color={pos ? "var(--color-secondary)" : "var(--color-error)"} />
+        {hasSpark && (
+          <Spark data={spark} color={pos ? "var(--color-secondary)" : "var(--color-error)"} />
+        )}
       </div>
+      {prevValue !== undefined && (
+        <div
+          className="mt-[12px] pt-[10px] flex items-center justify-between"
+          style={{ borderTop: "1px solid var(--color-border)" }}
+        >
+          <span className="text-[11.5px]" style={{ color: "var(--color-text-tertiary)" }}>
+            {prevLabel}
+          </span>
+          <span
+            className="text-[12.5px] font-semibold tnum"
+            style={{ color: "var(--color-text-secondary)" }}
+          >
+            {prevValue}
+          </span>
+        </div>
+      )}
       {goal !== undefined && (
         <div className="mt-[14px]">
           <div
