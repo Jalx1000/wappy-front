@@ -3,6 +3,8 @@ import {
   brandsApi,
   discoveriesApi,
   orphansApi,
+  strandedApi,
+  type StrandedConnection,
   type BrandOverview,
   type CreateBrandDto,
   type UpdateBrandDto,
@@ -627,6 +629,39 @@ export function useDiscardOrphan() {
     mutationFn: (orphanId: number) => orphansApi.discard(orphanId),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["orphans"] });
+    },
+  });
+}
+
+// ── Stranded connections (marcas eliminadas) ─────────────────────────────────
+export function useStranded() {
+  return useQuery<StrandedConnection[]>({
+    queryKey: ["stranded"],
+    queryFn: () => strandedApi.list(),
+    refetchOnWindowFocus: false,
+  });
+}
+
+export function useAssignStranded() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, brandId }: { id: number; brandId: number }) =>
+      strandedApi.assign(id, brandId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["stranded"] });
+      qc.invalidateQueries({ queryKey: ["connections"] });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
+      qc.invalidateQueries({ queryKey: ["brands"] });
+    },
+  });
+}
+
+export function useDiscardStranded() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => strandedApi.discard(id),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["stranded"] });
     },
   });
 }

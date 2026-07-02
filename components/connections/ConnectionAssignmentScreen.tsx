@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   useBrands,
@@ -37,31 +37,28 @@ export function ConnectionAssignmentScreen() {
   } = useDiscovery(Number.isFinite(discoveryId) ? discoveryId : null);
   const assignMut = useAssignDiscovery();
 
-  // accountId → brandId (null = sin asignar)
+  // accountId → brandId (null = sin asignar). Solo guarda elecciones explícitas
+  // del usuario; el default (la marca que disparó el OAuth) se deriva en render
+  // para no necesitar seed vía efecto.
   const [picks, setPicks] = useState<Record<string, number | null>>({});
-
-  useEffect(() => {
-    if (!discovery) return;
-    setPicks((prev) => {
-      const next = { ...prev };
-      for (const a of discovery.accounts) {
-        if (!(a.accountId in next)) {
-          next[a.accountId] = discovery.triggeredBrandId ?? null;
-        }
-      }
-      return next;
-    });
-  }, [discovery]);
+  const pickFor = (accountId: string): number | null =>
+    picks[accountId] !== undefined
+      ? picks[accountId]
+      : (discovery?.triggeredBrandId ?? null);
 
   const counts = useMemo(() => {
     let toAssign = 0;
     let toOrphan = 0;
-    for (const v of Object.values(picks)) {
+    for (const a of discovery?.accounts ?? []) {
+      const v =
+        picks[a.accountId] !== undefined
+          ? picks[a.accountId]
+          : (discovery?.triggeredBrandId ?? null);
       if (v == null) toOrphan++;
       else toAssign++;
     }
     return { toAssign, toOrphan };
-  }, [picks]);
+  }, [picks, discovery]);
 
   if (!Number.isFinite(discoveryId)) {
     return (
@@ -84,9 +81,9 @@ export function ConnectionAssignmentScreen() {
     CHANNEL_LABELS[discovery.channel] ?? discovery.channel.toUpperCase();
 
   const onConfirm = async () => {
-    const assignments = Object.entries(picks).map(([accountId, brandId]) => ({
-      accountId,
-      brandId,
+    const assignments = discovery.accounts.map((a) => ({
+      accountId: a.accountId,
+      brandId: pickFor(a.accountId),
     }));
     try {
       const result = await assignMut.mutateAsync({
@@ -128,8 +125,8 @@ export function ConnectionAssignmentScreen() {
         style={{ color: "var(--color-text-secondary)" }}
       >
         Detectamos <strong>{discovery.accounts.length}</strong> cuenta(s)
-        accesibles. Elegí a qué marca pertenece cada una. Las que dejes "Sin
-        asignar" quedan en la bandeja para conectar después.
+        accesibles. Elegí a qué marca pertenece cada una. Las que dejes «Sin
+        asignar» quedan en la bandeja para conectar después.
       </p>
 
       <div className="flex flex-col gap-3 mb-6">
@@ -153,7 +150,7 @@ export function ConnectionAssignmentScreen() {
               </div>
             </div>
             <select
-              value={picks[acc.accountId] == null ? "" : String(picks[acc.accountId])}
+              value={pickFor(acc.accountId) == null ? "" : String(pickFor(acc.accountId))}
               onChange={(e) => {
                 const v = e.target.value;
                 setPicks((prev) => ({

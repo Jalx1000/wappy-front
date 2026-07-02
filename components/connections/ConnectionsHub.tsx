@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { Icon } from "@/components/ui/Icon";
-import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { useUIStore } from "@/store/ui";
 import {
@@ -13,10 +12,10 @@ import {
   useDisconnectMutation,
   useSyncConnectionMutation,
   useOrphans,
+  useStranded,
 } from "@/lib/hooks";
 import { ChangeBrandModal } from "@/components/connections/ChangeBrandModal";
 import {
-  BRANDS as BRANDS_FALLBACK,
   CHANNEL_META,
   CHANNEL_CATEGORIES,
   type ConnRecord,
@@ -48,6 +47,8 @@ const HEALTH_STYLE = {
   err:  { bg: "var(--color-error-bg)",    color: "var(--color-error)",        label: "Requiere acción" },
 };
 
+type ChannelGroup = { ch: string; accounts: ConnRecord[] };
+
 function ConnectionsSkeleton() {
   return (
     <div className="p-7 max-w-[1440px] flex flex-col gap-4">
@@ -60,8 +61,7 @@ function ConnectionsSkeleton() {
 }
 
 export function ConnectionsHub() {
-  const { activeBrand } = useUIStore();
-  const brand = activeBrand ?? BRANDS_FALLBACK[0];
+  const { activeBrand: brand } = useUIStore();
   const toast = useToast();
   const qc = useQueryClient();
   const router = useRouter();
@@ -69,11 +69,12 @@ export function ConnectionsHub() {
 
   const { data: conns = [], isPending } = useConnections(brand?.id);
   const { data: orphans = [] } = useOrphans();
+  const { data: stranded = [] } = useStranded();
 
   const disconnectMutation = useDisconnectMutation(brand?.id);
   const syncMutation       = useSyncConnectionMutation(brand?.id);
 
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<{
     id: number;
     channel: string;
@@ -99,29 +100,37 @@ export function ConnectionsHub() {
     }
   }, [successFlag, errorFlag]);  // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (isPending) return <ConnectionsSkeleton />;
+  if (isPending || !brand) return <ConnectionsSkeleton />;
 
-  // Build full catalog: every channel from CHANNEL_META, with real data when
-  // a backend connection exists, "available" otherwise.
-  const byCh = new Map(conns.map((c) => [c.ch, c]));
-  const cataloged: ConnRecord[] = Object.keys(CHANNEL_META)
+  // Catálogo completo: un grupo por canal con TODAS sus cuentas conectadas
+  // (una marca puede tener varias páginas/cuentas del mismo canal).
+  const byCh = new Map<string, ConnRecord[]>();
+  for (const c of conns) {
+    const list = byCh.get(c.ch) ?? [];
+    list.push(c);
+    byCh.set(c.ch, list);
+  }
+  const cataloged: ChannelGroup[] = Object.keys(CHANNEL_META)
     .filter((ch) => !HIDDEN_CHANNELS.has(ch))
-    .map((ch) => {
-      const real = byCh.get(ch);
-      if (real) return real;
-      return { ch, account: null, status: "available" as const, health: null };
-    });
+    .map((ch) => ({ ch, accounts: byCh.get(ch) ?? [] }));
 
-  const connected = cataloged.filter((c) => c.status === "connected").length;
-  const needsAttn = cataloged.filter(
+  const totalAccounts = conns.length;
+  const connectedAccounts = conns.filter((c) => c.status === "connected").length;
+  const needsAttn = conns.filter(
     (c) => c.status === "reauth" || c.health === "err" || c.health === "warn"
   ).length;
+  const lastSyncLabel = (() => {
+    const latest = conns
+      .filter((c) => c.lastSyncAt)
+      .sort((a, b) =>
+        String(b.lastSyncAt).localeCompare(String(a.lastSyncAt)),
+      )[0];
+    return latest?.lastSync ?? "sin sincronizar";
+  })();
+
+  const unassignedCount = orphans.length + stranded.length;
 
   const handleConnect = (ch: string) => {
-    if (!brand?.id) {
-      toast("Selecciona una marca primero", "info");
-      return;
-    }
     const urlChannel = URL_CHANNEL[ch];
     if (!urlChannel) {
       toast(`Canal sin OAuth configurado: ${ch}`, "info");
@@ -130,7 +139,7 @@ export function ConnectionsHub() {
     toast(`Te llevamos a ${CHANNEL_META[ch]?.label ?? ch}…`);
     // Redirige al route handler que adjunta el JWT y forwardea al backend.
     // El backend devuelve 302 al consent NATIVO de la plataforma.
-    window.location.href = `/oauth/launch/${urlChannel}?brandId=${brand.id}`;
+    window.location.assign(`/oauth/launch/${urlChannel}?brandId=${brand.id}`);
   };
 
   const handleDisconnect = (conn: ConnRecord) => {
@@ -138,13 +147,19 @@ export function ConnectionsHub() {
       toast("Esta conexión aún no existe en backend", "info");
       return;
     }
+    if (typeof window !== "undefined") {
+      const ok = window.confirm(
+        `¿Desconectar "${conn.account}"? Dejará de sincronizar datos.`,
+      );
+      if (!ok) return;
+    }
     disconnectMutation.mutate({ id: conn.id, ch: conn.ch });
-    setExpanded(null);
-    toast(`${CHANNEL_META[conn.ch]?.label ?? conn.ch} desconectado`, "info");
+    setExpandedId(null);
+    toast(`${conn.account ?? CHANNEL_META[conn.ch]?.label ?? conn.ch} desconectado`, "info");
   };
 
   const handleSync = () => {
-    const targets = cataloged.filter(
+    const targets = conns.filter(
       (c): c is ConnRecord & { id: number } =>
         typeof c.id === "number" && c.status === "connected",
     );
@@ -185,7 +200,7 @@ export function ConnectionsHub() {
         </div>
       </div>
 
-      {orphans.length > 0 && (
+      {unassignedCount > 0 && (
         <button
           onClick={() => router.push("/app/connections/orphans")}
           className="w-full mb-4 fobo-card p-4 flex items-center gap-3 text-left"
@@ -197,10 +212,13 @@ export function ConnectionsHub() {
           <Icon name="bell" size={18} color="var(--color-warning)" />
           <div className="flex-1">
             <div className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
-              Hay {orphans.length} cuenta(s) sin asignar
+              Hay {unassignedCount} cuenta(s) sin asignar
             </div>
             <div className="text-[12.5px]" style={{ color: "var(--color-text-secondary)" }}>
-              Detectadas por OAuth pero no asignadas a ninguna marca. Cualquier admin las puede asignar.
+              {orphans.length > 0 && `${orphans.length} detectada(s) por OAuth sin marca`}
+              {orphans.length > 0 && stranded.length > 0 && " · "}
+              {stranded.length > 0 && `${stranded.length} de marcas eliminadas`}
+              . Cualquier admin las puede asignar.
             </div>
           </div>
           <div className="text-[13px] font-semibold" style={{ color: "var(--color-warning)" }}>
@@ -216,8 +234,8 @@ export function ConnectionsHub() {
       >
         {[
           {
-            label: "Conectados",
-            value: `${connected} / ${cataloged.length}`,
+            label: "Cuentas conectadas",
+            value: `${connectedAccounts} / ${totalAccounts}`,
             color: "var(--color-success)",
             icon: "check" as IconName,
           },
@@ -229,8 +247,7 @@ export function ConnectionsHub() {
           },
           {
             label: "Última sincronización",
-            value:
-              conns.find((c) => c.lastSync)?.lastSync ?? "sin sincronizar",
+            value: lastSyncLabel,
             color: "var(--color-secondary-ink)",
             icon: "refresh" as IconName,
           },
@@ -271,9 +288,12 @@ export function ConnectionsHub() {
 
       {/* Categories */}
       {CHANNEL_CATEGORIES.map((cat) => {
-        const items = cataloged.filter((c) => CHANNEL_META[c.ch]?.cat === cat.id);
+        const items = cataloged.filter((g) => CHANNEL_META[g.ch]?.cat === cat.id);
         if (!items.length) return null;
-        const connCount = items.filter((c) => c.status === "connected").length;
+        const connCount = items.reduce(
+          (n, g) => n + g.accounts.filter((a) => a.status === "connected").length,
+          0,
+        );
         return (
           <div key={cat.id} className="mb-7">
             <div className="flex items-center gap-[9px] mb-3">
@@ -285,43 +305,35 @@ export function ConnectionsHub() {
                 {cat.label}
               </span>
               <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
-                · {connCount}/{items.length}
+                · {connCount} cuenta(s)
               </span>
             </div>
             <div
-              className="grid gap-4"
+              className="grid gap-4 items-start"
               style={{ gridTemplateColumns: "repeat(3, 1fr)" }}
             >
-              {items.map((conn) => (
+              {items.map((group) => (
                 <ChannelCard
-                  key={conn.ch}
-                  conn={conn}
-                  expanded={expanded === conn.ch}
-                  onToggleExpand={() =>
-                    setExpanded((prev) => (prev === conn.ch ? null : conn.ch))
+                  key={group.ch}
+                  group={group}
+                  expandedId={expandedId}
+                  onToggleExpand={(id) =>
+                    setExpandedId((prev) => (prev === id ? null : id))
                   }
-                  onConnect={() => handleConnect(conn.ch)}
-                  onReauth={() => handleConnect(conn.ch)}
-                  onDisconnect={() => handleDisconnect(conn)}
-                  onSync={
-                    typeof conn.id === "number" && conn.status === "connected"
-                      ? () => syncMutation.mutate(conn.id as number)
-                      : undefined
+                  onConnect={() => handleConnect(group.ch)}
+                  onDisconnect={handleDisconnect}
+                  onSync={(id) => syncMutation.mutate(id)}
+                  syncingId={
+                    syncMutation.isPending
+                      ? (syncMutation.variables as number)
+                      : null
                   }
-                  isSyncing={
-                    typeof conn.id === "number" &&
-                    syncMutation.isPending &&
-                    syncMutation.variables === conn.id
-                  }
-                  onChangeBrand={
-                    typeof conn.id === "number"
-                      ? () =>
-                          setReassignTarget({
-                            id: conn.id as number,
-                            channel: conn.ch,
-                            accountHandle: conn.account ?? "",
-                          })
-                      : undefined
+                  onChangeBrand={(conn) =>
+                    setReassignTarget({
+                      id: conn.id as number,
+                      channel: conn.ch,
+                      accountHandle: conn.account ?? "",
+                    })
                   }
                 />
               ))}
@@ -344,33 +356,32 @@ export function ConnectionsHub() {
   );
 }
 
-// ── Individual channel card ───────────────────────────────────────────────────
+// ── Card por canal con todas sus cuentas ─────────────────────────────────────
 interface ChannelCardProps {
-  conn: ConnRecord;
-  expanded: boolean;
-  onToggleExpand: () => void;
+  group: ChannelGroup;
+  expandedId: number | null;
+  onToggleExpand: (id: number) => void;
   onConnect: () => void;
-  onReauth: () => void;
-  onDisconnect: () => void;
-  onSync?: () => void;
-  isSyncing?: boolean;
-  onChangeBrand?: () => void;
+  onDisconnect: (conn: ConnRecord) => void;
+  onSync: (id: number) => void;
+  syncingId: number | null;
+  onChangeBrand: (conn: ConnRecord) => void;
 }
 
 function ChannelCard({
-  conn, expanded, onToggleExpand, onConnect, onReauth, onDisconnect, onSync, isSyncing, onChangeBrand,
+  group, expandedId, onToggleExpand, onConnect, onDisconnect, onSync, syncingId, onChangeBrand,
 }: ChannelCardProps) {
-  const ch = CHANNEL_META[conn.ch];
-  const available = conn.status === "available";
-  const reauth = conn.status === "reauth";
-  const health = conn.health ? HEALTH_STYLE[conn.health] : null;
+  const ch = CHANNEL_META[group.ch];
+  const accounts = group.accounts;
+  const available = accounts.length === 0;
+  const anyReauth = accounts.some((a) => a.status === "reauth");
 
   return (
     <motion.div
       layout
       className="fobo-card p-[18px]"
       style={{
-        border: reauth ? "1px solid var(--color-error)" : "1px solid var(--color-border)",
+        border: anyReauth ? "1px solid var(--color-error)" : "1px solid var(--color-border)",
       }}
     >
       {/* Channel header */}
@@ -397,145 +408,208 @@ function ChannelCard({
             className="text-[12px] truncate"
             style={{ color: "var(--color-text-tertiary)" }}
           >
-            {available ? "No conectado" : conn.account}
+            {available
+              ? "No conectado"
+              : `${accounts.length} cuenta${accounts.length === 1 ? "" : "s"}`}
           </div>
         </div>
-        {!available && health && (
-          <span
-            className="w-[9px] h-[9px] rounded-full flex-shrink-0"
-            style={{ background: health.color }}
-            title={health.label}
-          />
-        )}
       </div>
 
-      {/* Health + last sync */}
-      {!available && (
-        <div className="flex items-center gap-2 mb-3 flex-wrap">
-          {health && (
-            <span
-              className="text-[11px] font-semibold rounded-full px-[9px] py-[3px]"
-              style={{ background: health.bg, color: health.color }}
-            >
-              ● {health.label}
-            </span>
-          )}
-          {conn.lastSync && (
-            <span className="text-[11.5px]" style={{ color: "var(--color-text-tertiary)" }}>
-              Sync {conn.lastSync}
-            </span>
-          )}
-        </div>
-      )}
-
-      {/* Expanded scopes */}
-      <AnimatePresence>
-        {expanded && !available && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="overflow-hidden"
+      {/* Account rows */}
+      {accounts.map((conn) => {
+        const health = conn.health ? HEALTH_STYLE[conn.health] : null;
+        const reauth = conn.status === "reauth";
+        const expanded = typeof conn.id === "number" && expandedId === conn.id;
+        return (
+          <div
+            key={conn.id ?? conn.account}
+            className="rounded-[10px] px-3 py-[9px] mb-2"
+            style={{
+              background: "var(--color-background)",
+              border: reauth
+                ? "1px solid var(--color-error)"
+                : "1px solid transparent",
+            }}
           >
-            <div
-              className="rounded-[10px] px-3 py-[10px] mb-3"
-              style={{ background: "var(--color-background)" }}
-            >
-              <div
-                className="text-[10.5px] font-bold uppercase mb-[7px]"
-                style={{ letterSpacing: "0.05em", color: "var(--color-text-tertiary)" }}
+            <div className="flex items-center gap-2">
+              {health && (
+                <span
+                  className="w-[8px] h-[8px] rounded-full flex-shrink-0"
+                  style={{ background: health.color }}
+                  title={health.label}
+                />
+              )}
+              <button
+                onClick={() => typeof conn.id === "number" && onToggleExpand(conn.id)}
+                className="flex-1 min-w-0 text-left border-none bg-transparent cursor-pointer p-0"
+                title="Ver detalles"
               >
-                Permisos otorgados
-              </div>
-              <div className="flex flex-wrap gap-[6px]">
-                {ch.scopes.map((s) => (
-                  <span
-                    key={s}
-                    className="text-[11px] font-medium rounded-full px-[9px] py-[3px] flex items-center gap-[5px]"
-                    style={{
-                      background: "var(--color-surface)",
-                      border: "1px solid var(--color-border)",
-                      color: "var(--color-text-secondary)",
-                    }}
-                  >
-                    <Icon name="check" size={11} color="var(--color-success)" />
-                    {s}
-                  </span>
-                ))}
-              </div>
-              {conn.since && (
-                <div
-                  className="text-[11.5px] mt-[9px]"
+                <span
+                  className="block text-[13px] font-medium truncate"
+                  style={{
+                    color: "var(--color-text-primary)",
+                    fontFamily: "var(--font-ui)",
+                  }}
+                >
+                  {conn.account}
+                </span>
+                <span
+                  className="block text-[11px]"
                   style={{ color: "var(--color-text-tertiary)" }}
                 >
-                  Conectado desde {conn.since}
-                </div>
-              )}
+                  {reauth
+                    ? "Requiere reautenticación"
+                    : conn.lastSync
+                      ? `Sync ${conn.lastSync}`
+                      : "Sin sincronizar"}
+                </span>
+              </button>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {conn.status === "connected" && typeof conn.id === "number" && (
+                  <IconBtn
+                    title="Sincronizar ahora"
+                    onClick={() => onSync(conn.id as number)}
+                    disabled={syncingId === conn.id}
+                  >
+                    <Icon
+                      name="refresh"
+                      size={14}
+                      className={syncingId === conn.id ? "animate-spin" : undefined}
+                    />
+                  </IconBtn>
+                )}
+                {typeof conn.id === "number" && (
+                  <IconBtn title="Cambiar de marca" onClick={() => onChangeBrand(conn)}>
+                    <Icon name="edit" size={14} />
+                  </IconBtn>
+                )}
+                <IconBtn
+                  title="Desconectar"
+                  onClick={() => onDisconnect(conn)}
+                  danger
+                >
+                  <Icon name="plug" size={14} color="var(--color-error)" />
+                </IconBtn>
+              </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+            {/* Expanded: permisos reales + desde cuándo */}
+            <AnimatePresence>
+              {expanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-[9px]">
+                    {(conn.scopes ?? []).length > 0 ? (
+                      <>
+                        <div
+                          className="text-[10.5px] font-bold uppercase mb-[6px]"
+                          style={{ letterSpacing: "0.05em", color: "var(--color-text-tertiary)" }}
+                        >
+                          Permisos otorgados
+                        </div>
+                        <div className="flex flex-wrap gap-[5px]">
+                          {(conn.scopes ?? []).map((s) => (
+                            <span
+                              key={s}
+                              className="text-[10.5px] font-medium rounded-full px-[8px] py-[2px]"
+                              style={{
+                                background: "var(--color-surface)",
+                                border: "1px solid var(--color-border)",
+                                color: "var(--color-text-secondary)",
+                              }}
+                            >
+                              {s}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <div
+                        className="text-[11.5px]"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                      >
+                        Sin permisos registrados para esta conexión.
+                      </div>
+                    )}
+                    {conn.since && (
+                      <div
+                        className="text-[11px] mt-[7px]"
+                        style={{ color: "var(--color-text-tertiary)" }}
+                      >
+                        Conectado desde {conn.since}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
 
       {/* Actions */}
-      <div className="flex gap-2">
-        {reauth ? (
+      <div className="flex gap-2 mt-1">
+        {anyReauth && (
           <button
-            onClick={onReauth}
+            onClick={onConnect}
             className="fobo-btn fobo-btn-primary fobo-btn-sm flex-1"
             style={{ background: "var(--color-error)" }}
           >
             Reautenticar
           </button>
-        ) : available ? (
-          <button
-            onClick={onConnect}
-            className="fobo-btn fobo-btn-primary fobo-btn-sm flex-1 gap-1"
-          >
-            <Icon name="plus" size={15} /> Conectar
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={onToggleExpand}
-              className="fobo-btn fobo-btn-secondary fobo-btn-sm flex-1"
-            >
-              {expanded ? "Ocultar" : "Detalles"}
-            </button>
-            {onSync && (
-              <button
-                onClick={onSync}
-                disabled={isSyncing}
-                title="Sincronizar ahora"
-                className="fobo-btn fobo-btn-secondary fobo-btn-sm px-3"
-              >
-                <Icon
-                  name="refresh"
-                  size={15}
-                  className={isSyncing ? "animate-spin" : undefined}
-                />
-              </button>
-            )}
-            {onChangeBrand && (
-              <button
-                onClick={onChangeBrand}
-                title="Cambiar marca"
-                className="fobo-btn fobo-btn-secondary fobo-btn-sm px-3"
-              >
-                <Icon name="edit" size={15} />
-              </button>
-            )}
-            <button
-              onClick={onDisconnect}
-              title="Desconectar"
-              className="fobo-btn fobo-btn-secondary fobo-btn-sm px-3"
-              style={{ color: "var(--color-error)" }}
-            >
-              <Icon name="plug" size={15} color="var(--color-error)" />
-            </button>
-          </>
         )}
+        <button
+          onClick={onConnect}
+          className={
+            available
+              ? "fobo-btn fobo-btn-primary fobo-btn-sm flex-1 gap-1"
+              : "fobo-btn fobo-btn-secondary fobo-btn-sm flex-1 gap-1"
+          }
+        >
+          <Icon name="plus" size={15} />
+          {available ? "Conectar" : "Añadir otra cuenta"}
+        </button>
       </div>
     </motion.div>
+  );
+}
+
+function IconBtn({
+  title,
+  onClick,
+  disabled,
+  danger,
+  children,
+}: {
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      className="flex items-center justify-center w-7 h-7 rounded-[7px] border-none cursor-pointer flex-shrink-0"
+      style={{
+        background: "transparent",
+        color: danger ? "var(--color-error)" : "var(--color-text-secondary)",
+      }}
+      onMouseEnter={(e) =>
+        ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)")
+      }
+      onMouseLeave={(e) =>
+        ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+      }
+    >
+      {children}
+    </button>
   );
 }

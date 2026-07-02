@@ -154,6 +154,10 @@ function mapBackendConnection(c: BackendConnection): ConnRecord {
     health: mapHealth(c.status),
     since: mapSince(c.createdAt),
     lastSync: mapLastSync(c.lastSyncAt),
+    lastSyncAt: c.lastSyncAt,
+    scopes: c.scopes ?? [],
+    brandId: c.brandId,
+    accountId: c.accountId,
   };
 }
 
@@ -363,4 +367,28 @@ export const orphansApi = {
 
   discard: (orphanId: number) =>
     api.delete<void>(`/orphan-accounts/${orphanId}`),
+};
+
+// ── Stranded connections (marcas soft-deleted) ──────────────────────────────
+
+export type StrandedConnection = {
+  id: number;
+  channel: BackendChannel;
+  accountHandle: string;
+  accountId: string;
+  status: BackendConnectionStatus;
+  lastSyncAt: string | null;
+  previousBrandId: number;
+  previousBrandName: string;
+};
+
+export const strandedApi = {
+  list: () => api.get<StrandedConnection[]>(`/stranded-connections`),
+
+  assign: (id: number, brandId: number) =>
+    api.post<BackendConnection>(`/stranded-connections/${id}/assign`, {
+      brandId,
+    }),
+
+  discard: (id: number) => api.delete<void>(`/stranded-connections/${id}`),
 };

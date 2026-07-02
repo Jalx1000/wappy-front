@@ -104,6 +104,11 @@ export type ConnRecord = {
   health: "ok" | "warn" | "err" | null;
   since?: string;
   lastSync?: string;
+  // Solo presentes en conexiones reales del backend (no en mocks).
+  lastSyncAt?: string | null;
+  scopes?: string[];
+  brandId?: number;
+  accountId?: string;
 };
 
 export const CONNECTIONS: Record<string, ConnRecord[]> = {

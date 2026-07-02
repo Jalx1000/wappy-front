@@ -6,6 +6,9 @@ import {
   useOrphans,
   useAssignOrphan,
   useDiscardOrphan,
+  useStranded,
+  useAssignStranded,
+  useDiscardStranded,
 } from "@/lib/hooks";
 import { useToast } from "@/components/ui/Toast";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -27,14 +30,19 @@ const CHANNEL_LABELS: Record<string, string> = {
 export function OrphansList() {
   const { data: brands = [] } = useBrands();
   const { data: orphans = [], isPending } = useOrphans();
+  const { data: stranded = [], isPending: strandedPending } = useStranded();
   const assignMut = useAssignOrphan();
   const discardMut = useDiscardOrphan();
+  const assignStrandedMut = useAssignStranded();
+  const discardStrandedMut = useDiscardStranded();
   const toast = useToast();
   const [picks, setPicks] = useState<Record<number, number | "">>({});
+  // Picks separados: los ids de orphan y de connection pueden colisionar.
+  const [strandedPicks, setStrandedPicks] = useState<Record<number, number | "">>({});
 
-  if (isPending) return <OrphansSkeleton />;
+  if (isPending || strandedPending) return <OrphansSkeleton />;
 
-  if (orphans.length === 0) {
+  if (orphans.length === 0 && stranded.length === 0) {
     return (
       <div className="p-7 max-w-[860px]">
         <h1
@@ -103,6 +111,36 @@ export function OrphansList() {
     }
   };
 
+  const onAssignStranded = async (id: number) => {
+    const brandId = strandedPicks[id];
+    if (brandId === undefined || brandId === "" || brandId === 0) {
+      toast("Elegí una marca antes de asignar", "error");
+      return;
+    }
+    try {
+      await assignStrandedMut.mutateAsync({ id, brandId: Number(brandId) });
+      toast("Cuenta movida con todo su histórico");
+    } catch (err) {
+      toast(
+        `Error: ${(err as { message?: string })?.message ?? "no se pudo asignar"}`,
+        "error",
+      );
+    }
+  };
+
+  const onDiscardStranded = async (id: number) => {
+    if (!confirm("¿Desconectar esta cuenta? Dejará de sincronizar y tendrías que volver a hacer OAuth para recuperarla.")) return;
+    try {
+      await discardStrandedMut.mutateAsync(id);
+      toast("Cuenta desconectada");
+    } catch (err) {
+      toast(
+        `Error: ${(err as { message?: string })?.message ?? "no se pudo desconectar"}`,
+        "error",
+      );
+    }
+  };
+
   return (
     <div className="p-7 overflow-y-auto h-full max-w-[860px]">
       <h1
@@ -114,16 +152,24 @@ export function OrphansList() {
           color: "var(--color-text-primary)",
         }}
       >
-        Cuentas sin asignar ({orphans.length})
+        Cuentas sin asignar ({orphans.length + stranded.length})
       </h1>
       <p
         className="text-[14px] mt-1 mb-5"
         style={{ color: "var(--color-text-secondary)" }}
       >
-        Cuentas detectadas por OAuth que aún no se asignaron a ninguna marca.
-        Cualquier admin del equipo puede asignarlas.
+        Cuentas sin marca activa: detectadas por OAuth o dejadas atrás por
+        marcas eliminadas. Cualquier admin del equipo puede asignarlas.
       </p>
 
+      {orphans.length > 0 && (
+        <div
+          className="text-[12px] font-bold uppercase mb-2"
+          style={{ letterSpacing: "0.05em", color: "var(--color-text-tertiary)" }}
+        >
+          Detectadas por OAuth ({orphans.length})
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         {orphans.map((o) => (
           <div key={o.id} className="fobo-card p-4 flex items-center gap-4">
@@ -184,6 +230,79 @@ export function OrphansList() {
           </div>
         ))}
       </div>
+
+      {stranded.length > 0 && (
+        <>
+          <div
+            className="text-[12px] font-bold uppercase mb-2 mt-6"
+            style={{ letterSpacing: "0.05em", color: "var(--color-text-tertiary)" }}
+          >
+            De marcas eliminadas ({stranded.length})
+          </div>
+          <div className="flex flex-col gap-3">
+            {stranded.map((s) => (
+              <div key={s.id} className="fobo-card p-4 flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <div
+                    className="text-[14px] font-semibold truncate"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {s.accountHandle}
+                  </div>
+                  <div
+                    className="text-[12px] truncate"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    {CHANNEL_LABELS[s.channel] ?? s.channel} · {s.accountId}
+                  </div>
+                  <div
+                    className="text-[11.5px] mt-1"
+                    style={{ color: "var(--color-text-tertiary)" }}
+                  >
+                    Era de «{s.previousBrandName}» (marca eliminada)
+                    {s.lastSyncAt &&
+                      ` · último sync ${new Date(s.lastSyncAt).toLocaleString("es-BO")}`}
+                  </div>
+                </div>
+                <select
+                  value={strandedPicks[s.id] ?? ""}
+                  onChange={(e) =>
+                    setStrandedPicks((prev) => ({
+                      ...prev,
+                      [s.id]: e.target.value === "" ? "" : Number(e.target.value),
+                    }))
+                  }
+                  className="fobo-btn fobo-btn-secondary fobo-btn-sm"
+                  style={{ minWidth: 200 }}
+                >
+                  <option value="">Asignar a marca...</option>
+                  {brands.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => onAssignStranded(s.id)}
+                  disabled={assignStrandedMut.isPending}
+                  className="fobo-btn fobo-btn-primary fobo-btn-sm"
+                >
+                  Asignar
+                </button>
+                <button
+                  onClick={() => onDiscardStranded(s.id)}
+                  disabled={discardStrandedMut.isPending}
+                  title="Desconectar"
+                  className="fobo-btn fobo-btn-secondary fobo-btn-sm px-3"
+                  style={{ color: "var(--color-error)" }}
+                >
+                  <Icon name="trash" size={15} color="var(--color-error)" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
