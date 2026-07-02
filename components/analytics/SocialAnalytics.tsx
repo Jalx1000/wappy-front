@@ -272,8 +272,8 @@ export function SocialAnalytics() {
       {/* Main chart */}
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }} className="mb-4">
         <Panel
-          title="Alcance en el tiempo"
-          sub="Cuentas alcanzadas por día"
+          title={data?.trendMetric === "impressions" ? "Impresiones en el tiempo" : "Alcance en el tiempo"}
+          sub={data?.trendMetric === "impressions" ? "Impresiones por día (esta red no expone alcance diario)" : "Cuentas alcanzadas por día"}
           pad="18px 20px 14px"
         >
           {chartData.length ? (
@@ -290,7 +290,7 @@ export function SocialAnalytics() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.44 }}>
         <Panel
           title="Top publicaciones"
-          sub="Ordenadas por alcance"
+          sub="Ordenadas por interacciones"
           pad="14px 20px 18px"
         >
           {topPosts.length === 0 ? (

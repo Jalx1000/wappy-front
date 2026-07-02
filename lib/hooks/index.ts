@@ -129,6 +129,9 @@ export type SaPost = {
 export type SocialAnalyticsData = {
   kpis: SaKpi[];
   trend: typeof SA_TREND;
+  // Which metric the trend series actually holds (impressions is the fallback
+  // for channels without daily reach), so the chart card can label itself.
+  trendMetric?: "reach" | "impressions";
   networks: typeof SA_NETWORKS;
   audience: {
     age: typeof SA_AUDIENCE_AGE;
@@ -807,11 +810,12 @@ export function useSocialAnalytics(
         kpis.push({ label: "Videos", value: fmtCompact(k.video_count), delta: d("video_count"), spark: [] });
 
       // Trend from overview.series. Prefer reach; channels without reach
-      // (TikTok) fall back to impressions so the chart isn't blank.
+      // (TikTok) fall back to impressions so the chart isn't blank. The card
+      // relabels itself via trendMetric so it never shows impressions as reach.
+      const usedReach = Boolean(overview?.series.reach?.length);
       const reachSeries =
-        overview?.series.reach?.length
-          ? overview.series.reach
-          : overview?.series.impressions ?? [];
+        (usedReach ? overview?.series.reach : overview?.series.impressions) ??
+        [];
       const trend = {
         reach: reachSeries.map((p) => p.value),
         labels: buildLabels(reachSeries),
@@ -865,6 +869,7 @@ export function useSocialAnalytics(
       return {
         kpis,
         trend,
+        trendMetric: usedReach ? "reach" : "impressions",
         networks: [],
         audience: { age: [], gender: [], geo: [] },
         topPosts: mappedPosts,
