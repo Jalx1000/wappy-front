@@ -3,16 +3,16 @@
 /* ── Fobo Design Tokens ────────────────────────────────────────────────────── */
 :root {
   /* Brand blue */
-  --color-primary:          #0D5CA6;
+  --color-primary:          #000000;
   --color-on-primary:       #FFFFFF;
-  --color-primary-ink:      #0D5CA6;
-  --color-primary-bright:   #34BDF6;
-  --color-primary-light:    #AFD3EC;
-  --color-primary-subtle:   #E4F1FB;
-  --color-primary-hover:    #0A4A85;
+  --color-primary-ink:      #000000;
+  --color-primary-bright:   #C8F304;
+  --color-primary-light:    #edff9c;
+  --color-primary-subtle:   #F1FBC6;
+  --color-primary-hover:    #323232;
 
   /* Sky blue secondary */
-  --color-secondary:        #34BDF6;
+  --color-secondary:        #C8F304;
   --color-secondary-ink:    #0B6E9E;
   --color-secondary-subtle: #DBF3FE;
   --color-brand-gradient:   linear-gradient(135deg, #0D5CA6 0%, #34BDF6 100%);
@@ -111,15 +111,15 @@
 
 /* ── Dark theme ─────────────────────────────────────────────────────────────── */
 .dark {
-  --color-primary:          #2E86D4;
-  --color-on-primary:       #FFFFFF;
-  --color-primary-ink:      #34BDF6;
+  --color-primary:          #ffffff;
+  --color-on-primary:       #000000;
+  --color-primary-ink:      #C7F304;
   --color-primary-bright:   #34BDF6;
-  --color-primary-light:    #16324F;
-  --color-primary-subtle:   #11243A;
-  --color-primary-hover:    #4DA3E8;
+  --color-primary-light:    #edff9c;
+  --color-primary-subtle:   #242B05;
+  --color-primary-hover:    #cfcfcf;
 
-  --color-secondary:        #34BDF6;
+  --color-secondary:        #C7F304;
   --color-secondary-ink:    #6FD0FA;
   --color-secondary-subtle: #0E2A3A;
 
@@ -263,6 +263,41 @@ body {
   color: var(--color-primary-ink);
 }
 .fobo-btn-ghost:hover:not(:disabled) { background: var(--color-primary-subtle); }
+
+.fobo-btn-danger {
+  background: var(--color-error);
+  color: #fff;
+}
+.fobo-btn-danger:hover:not(:disabled) { filter: brightness(0.94); }
+
+/* Toggle switch — track carries the state color, thumb uses on-primary token */
+.fobo-toggle {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  background: var(--neutral-300);
+  transition: background-color 150ms var(--ease-out);
+}
+.fobo-toggle[aria-checked="true"] { background: var(--color-primary); }
+.fobo-toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--radius-pill);
+  background: var(--color-on-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform 160ms var(--ease-spring);
+}
+.fobo-toggle[aria-checked="true"]::after { transform: translateX(16px); }
+.fobo-toggle:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .fobo-btn-sm {
   height: 36px;

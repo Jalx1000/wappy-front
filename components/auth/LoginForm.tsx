@@ -8,7 +8,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
-import { FoboLogo } from "@/components/shell/FoboLogo";
+import { WappyLogo } from "@/components/shell/WappyLogo";
 
 const schema = z.object({
   email: z.string().email("Ingresa un correo válido"),

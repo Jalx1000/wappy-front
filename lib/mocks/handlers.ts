@@ -11,6 +11,8 @@ import {
   CAL_POSTS_RAW, POST_STATUS_META,
   BRIEFS_DATA, CONTRACTS_DATA,
   type Brief, type Contract,
+  PRODUCTS_DATA,
+  Product,
 } from "./analyticsData";
 
 const BASE = "/api";
@@ -192,27 +194,27 @@ export const handlers = [
     return HttpResponse.json({ id: `r${Date.now()}`, ...body, status: "generating" }, { status: 201 });
   }),
 
-  // ── Briefs ────────────────────────────────────────────────────────────────
-  http.get(`${BASE}/brands/:brandId/briefs`, () =>
-    HttpResponse.json(BRIEFS_DATA)
+  // ── Products ────────────────────────────────────────────────────────────────
+  http.get(`${BASE}/brands/:brandId/products`, () =>
+    HttpResponse.json(PRODUCTS_DATA)
   ),
 
-  http.post(`${BASE}/brands/:brandId/briefs`, async ({ request }) => {
-    const body = await request.json() as Omit<Brief, "id" | "createdAt">;
+  http.post(`${BASE}/brands/:brandId/products`, async ({ request }) => {
+    const body = await request.json() as Omit<Product, "id" | "createdAt">;
     return HttpResponse.json({
-      id: `BR-${Date.now()}`,
+      id: `PR-${Date.now()}`,
       ...body,
       createdAt: new Date().toLocaleDateString("es-BO")
     }, { status: 201 });
   }),
 
-  http.patch(`${BASE}/brands/:brandId/briefs/:id`, async ({ request }) => {
-    const body = await request.json() as Partial<Brief>;
-    const brief = BRIEFS_DATA.find((b) => b.id === (request as any).params.id);
-    return HttpResponse.json(brief ? { ...brief, ...body } : null);
+  http.patch(`${BASE}/brands/:brandId/products/:id`, async ({ params, request }) => {
+    const body = await request.json() as Partial<Product>;
+    const product = PRODUCTS_DATA.find((p) => p.id === params.id);
+    return HttpResponse.json(product ? { ...product, ...body } : null);
   }),
 
-  http.delete(`${BASE}/brands/:brandId/briefs/:id`, () =>
+  http.delete(`${BASE}/brands/:brandId/products/:id`, () =>
     HttpResponse.json({ ok: true })
   ),
 

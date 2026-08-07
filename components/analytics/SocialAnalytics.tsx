@@ -277,7 +277,7 @@ export function SocialAnalytics() {
           pad="18px 20px 14px"
         >
           {chartData.length ? (
-            <AreaChart data={chartData} color="#0D5CA6" height={210} />
+            <AreaChart data={chartData} color="#c8f304" height={210} />
           ) : (
             <div className="h-[210px] flex items-center justify-center text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
               Sin datos en este período para esta cuenta.

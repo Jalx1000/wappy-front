@@ -3,6 +3,7 @@
 import { useTheme } from "next-themes";
 import { BrandSwitcher } from "./BrandSwitcher";
 import { Icon } from "@/components/ui/Icon";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useUIStore } from "@/store/ui";
 
 export function Topbar() {
@@ -62,26 +63,7 @@ export function Topbar() {
         </button>
 
         {/* Notifications */}
-        <button
-          className="relative flex items-center justify-center w-[40px] h-[40px] rounded-[10px] border-none cursor-pointer transition-colors"
-          style={{
-            background: "transparent",
-            color: "var(--color-text-secondary)",
-          }}
-          title="Notificaciones"
-          onMouseEnter={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.background = "var(--neutral-100)")
-          }
-          onMouseLeave={(e) =>
-            ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
-          }
-        >
-          <Icon name="bell" size={19} />
-          <span
-            className="absolute top-[9px] right-[9px] w-[7px] h-[7px] rounded-full"
-            style={{ background: "var(--color-error)" }}
-          />
-        </button>
+        <NotificationBell />
 
         {/* Quick export CTA */}
         <button

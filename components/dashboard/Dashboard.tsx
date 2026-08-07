@@ -83,7 +83,7 @@ export function Dashboard() {
   const { data: me } = useMe();
   const firstName =
     me?.firstName?.trim() || me?.email?.split("@")[0] || "";
-  const { data: brands = BRANDS_FALLBACK } = useBrands();
+  const { data: brands = [] } = useBrands();
   const brand = activeBrand ?? brands[0];
 
   const [view, setView]     = useState<View>("brand");

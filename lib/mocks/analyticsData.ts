@@ -510,6 +510,31 @@ export const BRIEFS_DATA: Brief[] = [
   { id: "BR-006", influencerId: "i1", title: "Instagram: BTS Sesión Fotos", objective: "Reach 800K", deliverables: "5 Posts + 10 Stories", startDate: "12 jun", endDate: "28 jun", status: "firmado", hashtags: ["#BTS", "#Behind"], mentions: ["@toyosa"], dos: "Mostrar proceso", donts: "Caras sin autorizar", createdAt: "6 jun" },
 ];
 
+// ── Products ────────────────────────────────────────────────────────────────────
+export type ProductStatus = "borrador" | "enviado" | "firmado" | "activo";
+export type Product = {
+  id: string; influencerId: string; title: string; objective: string;
+  deliverables: string; startDate: string; endDate: string; status: ProductStatus;
+  hashtags: string[]; mentions: string[]; dos: string; donts: string;
+  createdAt: string;
+};
+
+export const PRODUCTS_META: Record<ProductStatus, { variant: string; label: string }> = {
+  borrador: { variant: "neutral", label: "Borrador" },
+  enviado:  { variant: "primary", label: "Enviado" },
+  firmado:  { variant: "success", label: "Firmado" },
+  activo:   { variant: "success", label: "Activo" },
+};
+
+export const PRODUCTS_DATA: Product[] = [
+  { id: "PR-001", influencerId: "i1", title: "Reel: City Drive", objective: "2M alcance, 5% engagement", deliverables: "1 Reel 60-90s\n3 Stories\nCarousel", startDate: "5 jun", endDate: "19 jun", status: "enviado", hashtags: ["#Toyosa", "#0km", "#CityDrive"], mentions: ["@toyosa", "@vehiculos"], dos: "Mostrar el interior del auto\nDestacad velocidad", donts: "No mostrar accidentes", createdAt: "1 jun" },
+  { id: "BR-002", influencerId: "i2", title: "TikTok: Test Drive x2", objective: "3M reach, 8% engagement", deliverables: "2 TikToks 30-45s\n5 Duets permitidos", startDate: "10 jun", endDate: "25 jun", status: "firmado", hashtags: ["#HiluxGR", "#TestDrive"], mentions: ["@toyosa"], dos: "Energía alta\nMúsica uptempo", donts: "Nada estático", createdAt: "2 jun" },
+  { id: "BR-003", influencerId: "i3", title: "Instagram: Specs Corolla", objective: "1.5M reach", deliverables: "1 Carrusel 10 slides", startDate: "11 jun", endDate: "20 jun", status: "borrador", hashtags: ["#Corolla", "#Hybrid"], mentions: ["@toyosa", "@eco"], dos: "Detalles técnicos", donts: "Comparaciones con competencia", createdAt: "3 jun" },
+  { id: "BR-004", influencerId: "i4", title: "YouTube: Walkaround RAV4", objective: "500K views", deliverables: "1 Video 3-5 min", startDate: "15 jun", endDate: "30 jun", status: "activo", hashtags: ["#RAV4", "#2026"], mentions: ["@toyosa"], dos: "Review honesto", donts: "Spoilers de próximos modelos", createdAt: "4 jun" },
+  { id: "BR-005", influencerId: "i5", title: "TikTok: POV Test Drive", objective: "5M reach, 10% eng", deliverables: "3 TikToks 15-20s\nChoreography trend", startDate: "8 jun", endDate: "22 jun", status: "borrador", hashtags: ["#POV", "#TestDrive"], mentions: ["@toyosa"], dos: "Uso de trending audio", donts: "Demasiado branding", createdAt: "5 jun" },
+  { id: "BR-006", influencerId: "i1", title: "Instagram: BTS Sesión Fotos", objective: "Reach 800K", deliverables: "5 Posts + 10 Stories", startDate: "12 jun", endDate: "28 jun", status: "firmado", hashtags: ["#BTS", "#Behind"], mentions: ["@toyosa"], dos: "Mostrar proceso", donts: "Caras sin autorizar", createdAt: "6 jun" },
+];
+
 // ── Contracts ─────────────────────────────────────────────────────────────────
 export type ContractType = "Reel" | "Reels" | "Stories" | "Post" | "Campaña" | "Video";
 export type SignatureStatus = "pendiente" | "firmado" | "vencido";

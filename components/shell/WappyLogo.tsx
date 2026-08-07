@@ -1,15 +1,15 @@
-interface FoboLogoProps {
+interface WappyLogoProps {
   collapsed?: boolean;
   size?: "sm" | "md";
 }
 
-export function FoboLogo({ collapsed, size = "md" }: FoboLogoProps) {
+export function WappyLogo({ collapsed, size = "md" }: WappyLogoProps) {
   const iconSize = size === "sm" ? 30 : 34;
   const fontSize = size === "sm" ? 16 : 20;
 
   return (
     <div className="flex items-center gap-[10px]">
-      <img className="flex items-center justify-center text-white flex-shrink-0 rounded-[6px]" src="/fobo-logotipo.png" alt="fobo" style={{
+      <img className="flex items-center justify-center text-white flex-shrink-0 rounded-[6px]" src="/wappy-logotipo.jpg" alt="wappy" style={{
           width: iconSize,
           height: iconSize,
                  }}
@@ -24,7 +24,7 @@ export function FoboLogo({ collapsed, size = "md" }: FoboLogoProps) {
             color: "var(--color-text-primary)",
           }}
         >
-          fobo
+          Wappy
         </span>
       )}
     </div>

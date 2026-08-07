@@ -55,8 +55,8 @@ function DualAreaChart({ current, previous, labels }: {
       <ReAreaChart data={data} margin={{ top: 6, right: 4, left: -8, bottom: 0 }}>
         <defs>
           <linearGradient id="gEste" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0D5CA6" stopOpacity={0.18} />
-            <stop offset="100%" stopColor="#0D5CA6" stopOpacity={0} />
+            <stop offset="0%" stopcolor="#c8f304" stopOpacity={0.18} />
+            <stop offset="100%" stopcolor="#c8f304" stopOpacity={0} />
           </linearGradient>
           <linearGradient id="gPrev" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#34BDF6" stopOpacity={0.12} />

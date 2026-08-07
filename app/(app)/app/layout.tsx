@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
 import { ToastProvider } from "@/components/ui/Toast";
 import { CommandPalette } from "@/components/ui/CommandPalette";
+import { OnboardingLauncher } from "@/components/onboarding/OnboardingLauncher";
 import { useUIStore } from "@/store/ui";
 
 function AppShell({ children }: { children: React.ReactNode }) {
@@ -16,8 +17,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
   // como `skipHydration: true` para que NO se lea localStorage en el primer
   // render del cliente.
   useEffect(() => {
-    void useUIStore.persist.rehydrate();
-    setHydrated(true);
+    // Rehydrate then flip `hydrated` on the resulting microtask (not
+    // synchronously in the effect body) to stay lint-clean.
+    Promise.resolve(useUIStore.persist.rehydrate()).then(() => setHydrated(true));
   }, []);
 
   useEffect(() => {
@@ -50,6 +52,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
       <CommandPalette />
+      <OnboardingLauncher />
     </div>
   );
 }

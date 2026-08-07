@@ -22,45 +22,27 @@ import {
 } from "@/lib/mocks/data";
 import type { IconName } from "@/components/ui/Icon";
 import { Skeleton } from "@/components/ui/Skeleton";
-
-// Mapeo del slug UI al urlChannel del backend OAuth gateway
-const URL_CHANNEL: Record<string, string> = {
-  facebook: "meta",       // Meta cubre FB + IG en un solo OAuth
-  instagram: "meta",
-  instagramlogin: "instagram-login",
-  tiktok: "tiktok",
-  tiktokads: "tiktok_ads",
-  youtube: "youtube",
-  linkedin: "linkedin",
-  linkedinads: "linkedin_ads",
-  ga4: "ga4",
-  googleads: "google_ads",
-  metaads: "meta-ads",
-};
-
-// Canales que existen en CHANNEL_META pero por ahora no se muestran en la UI.
-const HIDDEN_CHANNELS = new Set<string>(["website"]);
-
-const HEALTH_STYLE = {
-  ok:   { bg: "var(--color-success-bg)",  color: "var(--color-success-dark)", label: "Saludable" },
-  warn: { bg: "var(--color-warning-bg)",  color: "var(--color-warning)",      label: "Expira pronto" },
-  err:  { bg: "var(--color-error-bg)",    color: "var(--color-error)",        label: "Requiere acción" },
-};
-
-type ChannelGroup = { ch: string; accounts: ConnRecord[] };
+import { ChannelCardProps, ChannelGroup, HEALTH_STYLE, HIDDEN_CHANNELS, URL_CHANNEL } from "./utils/conectionsHub.helper";
+import { WhatsAppConnectModal } from "./modals/WhatsAppConnectModal";
 
 function ConnectionsSkeleton() {
   return (
     <div className="p-7 max-w-[1440px] flex flex-col gap-4">
       <div className="grid grid-cols-3 gap-4 mb-2">
-        {[...Array(3)].map((_, i) => <Skeleton.KPI key={i} />)}
+        {[...Array(3)].map((_, i) => (
+          <Skeleton.KPI key={i} />
+        ))}
       </div>
-      {[...Array(6)].map((_, i) => <Skeleton.Connection key={i} />)}
+      {[...Array(6)].map((_, i) => (
+        <Skeleton.Connection key={i} />
+      ))}
     </div>
   );
 }
 
 export function ConnectionsHub() {
+  const [modalOpen, setModalOpen] = useState(false);
+  //
   const { activeBrand: brand } = useUIStore();
   const toast = useToast();
   const qc = useQueryClient();
@@ -72,7 +54,7 @@ export function ConnectionsHub() {
   const { data: stranded = [] } = useStranded();
 
   const disconnectMutation = useDisconnectMutation(brand?.id);
-  const syncMutation       = useSyncConnectionMutation(brand?.id);
+  const syncMutation = useSyncConnectionMutation(brand?.id);
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [reassignTarget, setReassignTarget] = useState<{
@@ -98,7 +80,7 @@ export function ConnectionsHub() {
       toast(`Error al conectar: ${errorFlag}`, "info");
       router.replace("/app/connections");
     }
-  }, [successFlag, errorFlag]);  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [successFlag, errorFlag]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (isPending || !brand) return <ConnectionsSkeleton />;
 
@@ -115,9 +97,11 @@ export function ConnectionsHub() {
     .map((ch) => ({ ch, accounts: byCh.get(ch) ?? [] }));
 
   const totalAccounts = conns.length;
-  const connectedAccounts = conns.filter((c) => c.status === "connected").length;
+  const connectedAccounts = conns.filter(
+    (c) => c.status === "connected",
+  ).length;
   const needsAttn = conns.filter(
-    (c) => c.status === "reauth" || c.health === "err" || c.health === "warn"
+    (c) => c.status === "reauth" || c.health === "err" || c.health === "warn",
   ).length;
   const lastSyncLabel = (() => {
     const latest = conns
@@ -132,10 +116,17 @@ export function ConnectionsHub() {
 
   const handleConnect = (ch: string) => {
     const urlChannel = URL_CHANNEL[ch];
+
+    if (urlChannel === "whatsapp") {
+      setModalOpen(true);
+      return;
+    }
+
     if (!urlChannel) {
       toast(`Canal sin OAuth configurado: ${ch}`, "info");
       return;
     }
+
     toast(`Te llevamos a ${CHANNEL_META[ch]?.label ?? ch}…`);
     // Redirige al route handler que adjunta el JWT y forwardea al backend.
     // El backend devuelve 302 al consent NATIVO de la plataforma.
@@ -155,7 +146,10 @@ export function ConnectionsHub() {
     }
     disconnectMutation.mutate({ id: conn.id, ch: conn.ch });
     setExpandedId(null);
-    toast(`${conn.account ?? CHANNEL_META[conn.ch]?.label ?? conn.ch} desconectado`, "info");
+    toast(
+      `${conn.account ?? CHANNEL_META[conn.ch]?.label ?? conn.ch} desconectado`,
+      "info",
+    );
   };
 
   const handleSync = () => {
@@ -187,14 +181,22 @@ export function ConnectionsHub() {
           >
             Conexiones
           </h1>
-          <p className="text-[14px] mt-[5px]" style={{ color: "var(--color-text-secondary)" }}>
+          <p
+            className="text-[14px] mt-[5px]"
+            style={{ color: "var(--color-text-secondary)" }}
+          >
             Conecta las cuentas de{" "}
-            <strong style={{ color: "var(--color-text-primary)" }}>{brand.name}</strong>{" "}
+            <strong style={{ color: "var(--color-text-primary)" }}>
+              {brand.name}
+            </strong>{" "}
             para alimentar reportes y analítica
           </p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <button className="fobo-btn fobo-btn-secondary fobo-btn-sm flex items-center gap-2" onClick={handleSync}>
+          <button
+            className="fobo-btn fobo-btn-secondary fobo-btn-sm flex items-center gap-2"
+            onClick={handleSync}
+          >
             <Icon name="refresh" size={15} /> Sincronizar todo
           </button>
         </div>
@@ -211,17 +213,27 @@ export function ConnectionsHub() {
         >
           <Icon name="bell" size={18} color="var(--color-warning)" />
           <div className="flex-1">
-            <div className="text-[14px] font-semibold" style={{ color: "var(--color-text-primary)" }}>
+            <div
+              className="text-[14px] font-semibold"
+              style={{ color: "var(--color-text-primary)" }}
+            >
               Hay {unassignedCount} cuenta(s) sin asignar
             </div>
-            <div className="text-[12.5px]" style={{ color: "var(--color-text-secondary)" }}>
-              {orphans.length > 0 && `${orphans.length} detectada(s) por OAuth sin marca`}
+            <div
+              className="text-[12.5px]"
+              style={{ color: "var(--color-text-secondary)" }}
+            >
+              {orphans.length > 0 &&
+                `${orphans.length} detectada(s) por OAuth sin marca`}
               {orphans.length > 0 && stranded.length > 0 && " · "}
               {stranded.length > 0 && `${stranded.length} de marcas eliminadas`}
               . Cualquier admin las puede asignar.
             </div>
           </div>
-          <div className="text-[13px] font-semibold" style={{ color: "var(--color-warning)" }}>
+          <div
+            className="text-[13px] font-semibold"
+            style={{ color: "var(--color-warning)" }}
+          >
             Ver y asignar →
           </div>
         </button>
@@ -242,7 +254,9 @@ export function ConnectionsHub() {
           {
             label: "Requieren atención",
             value: String(needsAttn),
-            color: needsAttn ? "var(--color-warning)" : "var(--color-text-tertiary)",
+            color: needsAttn
+              ? "var(--color-warning)"
+              : "var(--color-text-tertiary)",
             icon: "bell" as IconName,
           },
           {
@@ -259,7 +273,8 @@ export function ConnectionsHub() {
             <span
               className="flex items-center justify-center rounded-[11px] flex-shrink-0"
               style={{
-                width: 42, height: 42,
+                width: 42,
+                height: 42,
                 background: "var(--color-background)",
                 color: s.color,
               }}
@@ -278,7 +293,10 @@ export function ConnectionsHub() {
               >
                 {s.value}
               </div>
-              <div className="text-[12.5px]" style={{ color: "var(--color-text-tertiary)" }}>
+              <div
+                className="text-[12.5px]"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
                 {s.label}
               </div>
             </div>
@@ -288,23 +306,33 @@ export function ConnectionsHub() {
 
       {/* Categories */}
       {CHANNEL_CATEGORIES.map((cat) => {
-        const items = cataloged.filter((g) => CHANNEL_META[g.ch]?.cat === cat.id);
+        const items = cataloged.filter(
+          (g) => CHANNEL_META[g.ch]?.cat === cat.id,
+        );
         if (!items.length) return null;
         const connCount = items.reduce(
-          (n, g) => n + g.accounts.filter((a) => a.status === "connected").length,
+          (n, g) =>
+            n + g.accounts.filter((a) => a.status === "connected").length,
           0,
         );
         return (
           <div key={cat.id} className="mb-7">
             <div className="flex items-center gap-[9px] mb-3">
-              <Icon name={cat.icon} size={17} color="var(--color-text-secondary)" />
+              <Icon
+                name={cat.icon}
+                size={17}
+                color="var(--color-text-secondary)"
+              />
               <span
                 className="text-[14px] font-bold"
                 style={{ color: "var(--color-text-primary)" }}
               >
                 {cat.label}
               </span>
-              <span className="text-[12px]" style={{ color: "var(--color-text-tertiary)" }}>
+              <span
+                className="text-[12px]"
+                style={{ color: "var(--color-text-tertiary)" }}
+              >
                 · {connCount} cuenta(s)
               </span>
             </div>
@@ -347,29 +375,40 @@ export function ConnectionsHub() {
         connectionId={reassignTarget?.id ?? null}
         currentBrandId={brand?.id ?? null}
         channelLabel={
-          reassignTarget ? CHANNEL_META[reassignTarget.channel]?.label ?? reassignTarget.channel : ""
+          reassignTarget
+            ? (CHANNEL_META[reassignTarget.channel]?.label ??
+              reassignTarget.channel)
+            : ""
         }
         accountHandle={reassignTarget?.accountHandle ?? ""}
         onClose={() => setReassignTarget(null)}
       />
+
+      <AnimatePresence>
+        {modalOpen && (
+          <WhatsAppConnectModal
+            onClose={() => setModalOpen(false)}
+            onSuccess={() => {
+              qc.invalidateQueries({ queryKey: ["connections", brand?.id] });
+              toast("Conexión de WhatsApp creada", "success");
+            }}
+            brand={brand || { id: undefined, name: undefined, slug: undefined }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-// ── Card por canal con todas sus cuentas ─────────────────────────────────────
-interface ChannelCardProps {
-  group: ChannelGroup;
-  expandedId: number | null;
-  onToggleExpand: (id: number) => void;
-  onConnect: () => void;
-  onDisconnect: (conn: ConnRecord) => void;
-  onSync: (id: number) => void;
-  syncingId: number | null;
-  onChangeBrand: (conn: ConnRecord) => void;
-}
-
 function ChannelCard({
-  group, expandedId, onToggleExpand, onConnect, onDisconnect, onSync, syncingId, onChangeBrand,
+  group,
+  expandedId,
+  onToggleExpand,
+  onConnect,
+  onDisconnect,
+  onSync,
+  syncingId,
+  onChangeBrand,
 }: ChannelCardProps) {
   const ch = CHANNEL_META[group.ch];
   const accounts = group.accounts;
@@ -381,7 +420,9 @@ function ChannelCard({
       layout
       className="fobo-card p-[18px]"
       style={{
-        border: anyReauth ? "1px solid var(--color-error)" : "1px solid var(--color-border)",
+        border: anyReauth
+          ? "1px solid var(--color-error)"
+          : "1px solid var(--color-border)",
       }}
     >
       {/* Channel header */}
@@ -389,7 +430,9 @@ function ChannelCard({
         <span
           className="flex items-center justify-center font-bold text-[16px] flex-shrink-0"
           style={{
-            width: 44, height: 44, borderRadius: 11,
+            width: 44,
+            height: 44,
+            borderRadius: 11,
             background: available ? "var(--color-background)" : ch.color,
             color: available ? "var(--color-text-tertiary)" : "#fff",
             border: available ? "1px solid var(--color-border)" : "none",
@@ -440,7 +483,9 @@ function ChannelCard({
                 />
               )}
               <button
-                onClick={() => typeof conn.id === "number" && onToggleExpand(conn.id)}
+                onClick={() =>
+                  typeof conn.id === "number" && onToggleExpand(conn.id)
+                }
                 className="flex-1 min-w-0 text-left border-none bg-transparent cursor-pointer p-0"
                 title="Ver detalles"
               >
@@ -474,12 +519,17 @@ function ChannelCard({
                     <Icon
                       name="refresh"
                       size={14}
-                      className={syncingId === conn.id ? "animate-spin" : undefined}
+                      className={
+                        syncingId === conn.id ? "animate-spin" : undefined
+                      }
                     />
                   </IconBtn>
                 )}
                 {typeof conn.id === "number" && (
-                  <IconBtn title="Cambiar de marca" onClick={() => onChangeBrand(conn)}>
+                  <IconBtn
+                    title="Cambiar de marca"
+                    onClick={() => onChangeBrand(conn)}
+                  >
                     <Icon name="edit" size={14} />
                   </IconBtn>
                 )}
@@ -508,7 +558,10 @@ function ChannelCard({
                       <>
                         <div
                           className="text-[10.5px] font-bold uppercase mb-[6px]"
-                          style={{ letterSpacing: "0.05em", color: "var(--color-text-tertiary)" }}
+                          style={{
+                            letterSpacing: "0.05em",
+                            color: "var(--color-text-tertiary)",
+                          }}
                         >
                           Permisos otorgados
                         </div>
@@ -603,10 +656,12 @@ function IconBtn({
         color: danger ? "var(--color-error)" : "var(--color-text-secondary)",
       }}
       onMouseEnter={(e) =>
-        ((e.currentTarget as HTMLButtonElement).style.background = "var(--color-surface)")
+        ((e.currentTarget as HTMLButtonElement).style.background =
+          "var(--color-surface)")
       }
       onMouseLeave={(e) =>
-        ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+        ((e.currentTarget as HTMLButtonElement).style.background =
+          "transparent")
       }
     >
       {children}

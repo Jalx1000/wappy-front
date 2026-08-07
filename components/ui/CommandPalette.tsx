@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { Icon } from "@/components/ui/Icon";
 import { useUIStore } from "@/store/ui";
 import { useBrands } from "@/lib/hooks";
+import { contactsApi } from "@/lib/api/contacts";
+import { socialInboxApi } from "@/lib/api/socialInbox";
+import { useHelpCenterStore } from "@/store/help-center";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 
 // ── Command definitions ────────────────────────────────────────────────────────
@@ -27,21 +31,41 @@ const NAV_CMDS: Omit<Cmd, "section">[] = [
   { id: "web",          label: "Web (GA4)",           icon: "globe",     href: "/app/analytics/web" },
   { id: "ads",          label: "Paid Media / Ads",   icon: "megaphone", href: "/app/analytics/ads" },
   { id: "reports",      label: "Reportes",           icon: "file",      href: "/app/reports" },
+  { id: "support-analytics", label: "Analytics de soporte", icon: "spark", href: "/app/analytics/support" },
+  { id: "scheduled-reports", label: "Reportes programados", icon: "clock", href: "/app/reports/scheduled" },
   { id: "calendar",     label: "Calendario",         icon: "calendar",  href: "/app/calendar" },
   { id: "approvals",    label: "Aprobaciones",       icon: "check",     href: "/app/approvals" },
   { id: "posts",        label: "Publicaciones",      icon: "layers",    href: "/app/posts" },
   { id: "campaigns",    label: "Campañas",           icon: "target",    href: "/app/campaigns" },
   { id: "influencers",  label: "Influencers",        icon: "star",      href: "/app/influencers" },
   { id: "inbox",        label: "Bandeja Social",     icon: "inbox",     href: "/app/inbox" },
+  { id: "team-inbox",   label: "Bandeja de equipo",  icon: "board",     href: "/app/team-inbox" },
+  { id: "contacts",     label: "Contactos",          icon: "users",     href: "/app/contacts" },
+  { id: "companies",    label: "Empresas",           icon: "building",  href: "/app/companies" },
+  { id: "tags",         label: "Etiquetas",          icon: "tag",       href: "/app/tags" },
+  { id: "catalog",      label: "Catálogo",           icon: "box",       href: "/app/catalog" },
+  { id: "attributes",   label: "Atributos",          icon: "database",  href: "/app/attributes" },
+  { id: "help-center",  label: "Centro de ayuda",    icon: "book",      href: "/app/help-center" },
+  { id: "bot-builder",  label: "Bot Builder",        icon: "bot",       href: "/app/bot-builder" },
+  { id: "automations",  label: "Automatizaciones",   icon: "zap",       href: "/app/automations" },
+  { id: "broadcasts",   label: "Mensajes proactivos", icon: "megaphone", href: "/app/broadcasts" },
+  { id: "integrations", label: "Integraciones",      icon: "plug",      href: "/app/integrations" },
   { id: "requests",     label: "Solicitudes",        icon: "ticket",    href: "/app/requests" },
   { id: "insights",     label: "Insights AI",        icon: "spark",     href: "/app/insights" },
   { id: "settings",     label: "Configuración",      icon: "settings",  href: "/app/settings" },
+  { id: "support-settings", label: "Ajustes de soporte", icon: "building", href: "/app/settings/support" },
+  { id: "profile",      label: "Mi perfil",          icon: "user",      href: "/app/profile" },
 ];
 
 const ACTION_CMDS: Omit<Cmd, "section">[] = [
-  { id: "new-post",     label: "Nueva publicación",  icon: "plus",      href: "/app/posts" },
-  { id: "new-report",   label: "Generar reporte",    icon: "file",      href: "/app/reports" },
-  { id: "new-request",  label: "Nueva solicitud",    icon: "ticket",    href: "/app/requests" },
+  { id: "new-post",       label: "Nueva publicación",     icon: "plus",     href: "/app/posts" },
+  { id: "new-report",     label: "Generar reporte",       icon: "file",     href: "/app/reports" },
+  { id: "new-request",    label: "Nueva solicitud",       icon: "ticket",   href: "/app/requests" },
+  { id: "new-tag",        label: "Nueva etiqueta",        icon: "tag",      href: "/app/tags" },
+  { id: "new-automation", label: "Nueva automatización",  icon: "zap",      href: "/app/automations" },
+  { id: "new-article",    label: "Nuevo artículo",        icon: "fileText", href: "/app/help-center" },
+  { id: "new-campaign",   label: "Nueva campaña",         icon: "megaphone", href: "/app/broadcasts" },
+  { id: "new-product",    label: "Nuevo producto",        icon: "box",      href: "/app/catalog" },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -109,12 +133,34 @@ function CmdItem({
 // ── Main palette ───────────────────────────────────────────────────────────────
 export function CommandPalette() {
   const router = useRouter();
-  const { commandPaletteOpen, setCommandPaletteOpen, setActiveBrand } = useUIStore();
+  const { commandPaletteOpen, setCommandPaletteOpen, setActiveBrand, activeBrand } = useUIStore();
   const { data: brands = BRANDS_FALLBACK } = useBrands();
+
+  // Cross-module search sources. Contacts/conversations are prefetched only
+  // while the palette is open; help articles come from the client store.
+  const brandId = activeBrand?.id;
+  const articles = useHelpCenterStore((s) => s.articles);
+  const { data: contactsPage } = useQuery({
+    queryKey: ["contacts", "list", brandId, ""],
+    queryFn: () => contactsApi.list({ limit: 50 }),
+    enabled: commandPaletteOpen && !!brandId,
+  });
+  const { data: convos = [] } = useQuery({
+    queryKey: ["social-inbox", "conversations", brandId],
+    queryFn: () => socialInboxApi.getConversations({}),
+    enabled: commandPaletteOpen && !!brandId,
+  });
 
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(0);
+  const [prevQuery, setPrevQuery] = useState(query);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Reset the highlighted row when the query changes (during render, not an effect).
+  if (query !== prevQuery) {
+    setPrevQuery(query);
+    setActiveIdx(0);
+  }
 
   const close = useCallback(() => {
     setCommandPaletteOpen(false);
@@ -135,10 +181,30 @@ export function CommandPalette() {
     },
   }));
 
+  // Dynamic result commands — only added while there's a query so the empty
+  // palette stays short.
+  const articleCmds: Cmd[] = articles.map((a) => ({
+    id: `art-${a.id}`, label: a.title, sub: a.excerpt, icon: "fileText", section: "Artículos", href: "/app/help-center",
+  }));
+  const contactCmds: Cmd[] = (contactsPage?.data || []).map((c) => ({
+    id: `ct-${c.contact.id}`,
+    label: c.contact.displayName || c.contact.phone || "Contacto",
+    sub: c.contact.phone || c.contact.email || undefined,
+    icon: "user", section: "Contactos", href: `/app/contacts?id=${c.contact.id}`,
+  }));
+  const convoCmds: Cmd[] = convos.map((c) => ({
+    id: `cv-${c.id}`,
+    label: c.contact?.displayName || c.peer,
+    sub: `Conversación · ${c.accountHandle || c.channel}`,
+    icon: "inbox", section: "Conversaciones",
+    href: c.contact?.id ? `/app/inbox?contact=${c.contact.id}` : "/app/inbox",
+  }));
+
   const allCmds: Cmd[] = [
     ...NAV_CMDS.map((c) => ({ ...c, section: "Navegar" })),
     ...brandCmds,
     ...ACTION_CMDS.map((c) => ({ ...c, section: "Acciones rápidas" })),
+    ...(query.trim() ? [...contactCmds, ...convoCmds, ...articleCmds] : []),
   ];
 
   const filtered = query.trim() ? allCmds.filter((c) => matches(c, query)) : allCmds;
@@ -169,10 +235,6 @@ export function CommandPalette() {
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [commandPaletteOpen]);
-
-  useEffect(() => {
-    setActiveIdx(0);
-  }, [query]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

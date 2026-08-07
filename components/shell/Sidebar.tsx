@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { Icon } from "@/components/ui/Icon";
-import { FoboLogo } from "./FoboLogo";
+import { WappyLogo } from "@/components/shell/WappyLogo";
 import { useUIStore } from "@/store/ui";
 import { useMe } from "@/lib/hooks";
+import { socialInboxApi } from "@/lib/api/socialInbox";
 import { cn } from "@/lib/utils";
 import type { IconName } from "@/components/ui/Icon";
 
@@ -35,10 +37,12 @@ const NAV: NavSection[] = [
   {
     section: "Analítica",
     items: [
+      { id: "support-analytics", label: "Analytics soporte", icon: "spark", href: "/app/analytics/support" },
       { id: "social",  label: "Social Analytics", icon: "chart",    href: "/app/analytics/social" },
       { id: "web",     label: "Web (GA4)",         icon: "globe",    href: "/app/analytics/web" },
       { id: "ads",     label: "Paid Media / Ads",  icon: "megaphone",href: "/app/analytics/ads" },
       { id: "reports", label: "Reportes",          icon: "file",     href: "/app/reports" },
+      { id: "scheduled-reports", label: "Reportes programados", icon: "clock", href: "/app/reports/scheduled" },
     ],
   },
   {
@@ -54,9 +58,32 @@ const NAV: NavSection[] = [
   {
     section: "Colaboración",
     items: [
-      { id: "inbox",    label: "Bandeja Social", icon: "inbox",  href: "/app/inbox",    badge: 3 },
+      { id: "inbox",    label: "Bandeja Social", icon: "inbox",  href: "/app/inbox" },
+      { id: "team-inbox", label: "Bandeja de equipo", icon: "board", href: "/app/team-inbox" },
+      { id: "contacts", label: "Contactos",      icon: "users",  href: "/app/contacts" },
+      { id: "companies", label: "Empresas",      icon: "building", href: "/app/companies" },
+      { id: "tags",     label: "Etiquetas",      icon: "tag",    href: "/app/tags" },
+      { id: "help-center", label: "Centro de ayuda", icon: "book", href: "/app/help-center" },
       { id: "requests", label: "Solicitudes",   icon: "ticket", href: "/app/requests" },
       { id: "insights", label: "Insights AI",   icon: "spark",  href: "/app/insights" },
+    ],
+  },
+  {
+    section: "Automatización",
+    items: [
+      { id: "bot-builder",  label: "Bot Builder",      icon: "bot", href: "/app/bot-builder" },
+      { id: "automations",  label: "Automatizaciones", icon: "zap", href: "/app/automations" },
+      { id: "broadcasts",   label: "Mensajes proactivos", icon: "megaphone", href: "/app/broadcasts" },
+      { id: "integrations", label: "Integraciones",    icon: "plug", href: "/app/integrations" },
+      { id: "support-settings", label: "Ajustes de soporte", icon: "building", href: "/app/settings/support" },
+    ],
+  },
+  {
+    section: "Venta",
+    items: [
+      { id: "products",    label: "Productos", icon: "products",  href: "/app/products"},
+      { id: "catalog",     label: "Catálogo",  icon: "box",       href: "/app/catalog" },
+      { id: "attributes",  label: "Atributos", icon: "database",  href: "/app/attributes" },
     ],
   },
 ];
@@ -67,7 +94,16 @@ interface SidebarProps {
 
 export function Sidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const { sidebarCollapsed, toggleSidebar } = useUIStore();
+  const { sidebarCollapsed, toggleSidebar, activeBrand } = useUIStore();
+
+  // Live Inbox count — shares the same query cache as the inbox view.
+  const brandId = activeBrand?.id;
+  const { data: convos = [] } = useQuery({
+    queryKey: ["social-inbox", "conversations", brandId],
+    queryFn: () => socialInboxApi.getConversations({}),
+    enabled: !!brandId,
+  });
+  const inboxCount = convos.length;
 
   const width = sidebarCollapsed ? 68 : 248;
 
@@ -83,7 +119,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
     >
       {/* Logo + collapse toggle */}
       <div className="flex items-center gap-[10px] px-5 py-[18px] flex-none">
-        <FoboLogo collapsed={sidebarCollapsed} />
+        <WappyLogo collapsed={sidebarCollapsed} />
         {!sidebarCollapsed && (
           <span
             className="ml-auto text-[10px] font-bold rounded-[5px] px-[6px] py-[2px]"
@@ -135,6 +171,7 @@ export function Sidebar({ onLogout }: SidebarProps) {
                 item.href === "/app"
                   ? pathname === "/app"
                   : pathname.startsWith(item.href);
+              const badge = item.id === "inbox" ? (inboxCount || undefined) : item.badge;
               return (
                 <Link key={item.id} href={item.href} className="block mb-[1px]">
                   <span
@@ -151,16 +188,16 @@ export function Sidebar({ onLogout }: SidebarProps) {
                     {!sidebarCollapsed && (
                       <>
                         <span className="flex-1 truncate">{item.label}</span>
-                        {item.badge && (
+                        {badge && (
                           <span
-                            className="text-[11px] font-bold text-white rounded-full min-w-[18px] h-[18px] px-[5px] flex items-center justify-center"
+                            className="text-[11px] font-bold rounded-full min-w-[18px] h-[18px] px-[5px] flex items-center justify-center dark:text-black"
                             style={{
                               background: isActive
                                 ? "var(--color-primary)"
                                 : "var(--color-secondary)",
                             }}
                           >
-                            {item.badge}
+                            {badge}
                           </span>
                         )}
                       </>
@@ -215,26 +252,31 @@ function SidebarUser({
     (me?.email?.[0] ?? "U").toUpperCase();
   return (
     <div
-      className="flex items-center gap-[10px] px-[10px] py-2 rounded-[9px] cursor-pointer mt-1"
+      className="flex items-center gap-[10px] px-[10px] py-2 rounded-[9px] mt-1"
       style={{ background: "transparent" }}
       onMouseEnter={(e) =>
         (e.currentTarget.style.background = "var(--color-background)")
       }
       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
     >
-      <span
-        className="flex items-center justify-center text-[12px] font-bold rounded-full flex-shrink-0"
-        style={{
-          width: 32,
-          height: 32,
-          background: "var(--color-secondary-subtle)",
-          color: "var(--color-secondary-ink)",
-        }}
+      <Link
+        href="/app/profile"
+        title="Mi perfil"
+        className="flex items-center gap-[10px] flex-1 min-w-0 cursor-pointer"
+        style={{ color: "inherit" }}
       >
-        {initials}
-      </span>
-      {!collapsed && (
-        <>
+        <span
+          className="flex items-center justify-center text-[12px] font-bold rounded-full flex-shrink-0"
+          style={{
+            width: 32,
+            height: 32,
+            background: "var(--color-secondary-subtle)",
+            color: "var(--color-secondary-ink)",
+          }}
+        >
+          {initials}
+        </span>
+        {!collapsed && (
           <div className="flex-1 min-w-0">
             <div
               className="text-[13px] font-semibold truncate"
@@ -248,6 +290,10 @@ function SidebarUser({
               </div>
             )}
           </div>
+        )}
+      </Link>
+      {!collapsed && (
+        <>
           <button
             onClick={onLogout}
             title="Cerrar sesión"

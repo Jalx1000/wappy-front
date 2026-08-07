@@ -105,6 +105,56 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
+// Authenticated fetch that returns an object URL for binary responses
+// (media proxy). Caller must URL.revokeObjectURL when done.
+async function fetchBlobUrl(path: string): Promise<string> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const brandId = getActiveBrandId();
+  if (brandId) headers["x-brand-id"] = brandId;
+
+  const url = path.startsWith("http")
+    ? path
+    : `${BASE_URL}/api/v1${path.startsWith("/") ? path : `/${path}`}`;
+
+  const res = await fetch(url, { headers });
+  if (res.status === 401) forceSignOut();
+  if (!res.ok) throw new ApiError(res.status, res.statusText);
+  return URL.createObjectURL(await res.blob());
+}
+
+// Authenticated multipart POST (file uploads). The browser sets the
+// multipart/form-data boundary — do NOT set Content-Type here.
+async function postForm<T>(path: string, form: FormData): Promise<T> {
+  const token = await getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const brandId = getActiveBrandId();
+  if (brandId) headers["x-brand-id"] = brandId;
+
+  const url = path.startsWith("http")
+    ? path
+    : `${BASE_URL}/api/v1${path.startsWith("/") ? path : `/${path}`}`;
+
+  const res = await fetch(url, { method: "POST", headers, body: form });
+  if (res.status === 401) forceSignOut();
+  if (!res.ok) {
+    let parsed: unknown;
+    try {
+      parsed = await res.json();
+    } catch {
+      // ignore
+    }
+    const msg =
+      typeof parsed === "object" && parsed && "message" in parsed
+        ? String((parsed as { message: unknown }).message)
+        : res.statusText;
+    throw new ApiError(res.status, msg, parsed);
+  }
+  return res.json() as Promise<T>;
+}
+
 export const api = {
   get: <T>(path: string, init?: RequestInit) =>
     request<T>(path, { method: "GET", ...init }),
@@ -114,4 +164,6 @@ export const api = {
     request<T>(path, { method: "PATCH", body, ...init }),
   delete: <T>(path: string, init?: RequestInit) =>
     request<T>(path, { method: "DELETE", ...init }),
+  getBlobUrl: (path: string) => fetchBlobUrl(path),
+  postForm: <T>(path: string, form: FormData) => postForm<T>(path, form),
 };

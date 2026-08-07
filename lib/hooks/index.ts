@@ -1431,6 +1431,55 @@ export function useDeleteBrief(brandId: string | undefined) {
   });
 }
 
+// ── Products ────────────────────────────────────────────────────────────────────
+import type { Product, CreateProductInput, UpdateProductInput, ProductsListResponse } from "@/lib/api/product";
+
+export function useProducts(brandId: string | undefined, options?: { page?: number; limit?: number }) {
+  const page = options?.page ?? 1;
+  const limit = options?.limit ?? 50;
+  return useQuery<Product[], Error>({
+    queryKey: ["products", brandId, page, limit],
+    queryFn: async () => {
+      const res = await api.get<ProductsListResponse>(`/products?page=${page}&limit=${limit}`);
+      return res.data ?? [];
+    },
+    enabled: !!brandId,
+  });
+}
+
+export function useCreateProduct(brandId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation<Product, Error, CreateProductInput>({
+    mutationFn: async (payload: CreateProductInput) =>
+      api.post<Product>(`/products`, payload),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["products", brandId] });
+    },
+  });
+}
+
+export function useUpdateProduct(brandId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation<Product | null, Error, { id: string; data: UpdateProductInput }>({
+    mutationFn: async ({ id, data }) =>
+      api.patch<Product | null>(`/products/${id}`, data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["products", brandId] });
+    },
+  });
+}
+
+export function useDeleteProduct(brandId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (id: string) =>
+      api.delete<void>(`/products/${id}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["products", brandId] });
+    },
+  });
+}
+
 // ── Contracts ─────────────────────────────────────────────────────────────────
 export function useContracts(brandId: string | undefined) {
   return useQuery<Contract[]>({

@@ -86,6 +86,10 @@ export const CHANNEL_META: Record<string, { label: string; color: string; letter
   linkedinads:{ label: "LinkedIn Ads",       color: "#0A66C2", letter: "in", cat: "ads",       scopes: ["Ad accounts", "Reporting", "Campañas"] },
   ga4:       { label: "Google Analytics 4", color: "#E8710A", letter: "▲",  cat: "analytics", scopes: ["Propiedad GA4", "Eventos", "Conversiones", "Audiencias"] },
   website:   { label: "Sitio Web",          color: "#0D5CA6", letter: "⊕",  cat: "web",       scopes: ["Tracking script", "Uptime", "Formularios"] },
+  whatsapp:     { label: "WhatsApp",        color: "#65f042ff", letter: "W",  cat: "inbox",       scopes: ["Tracking script", "Uptime", "Formularios"] },
+  facebookInbox:{ label: "Facebook Inbox",  color: "#65f042ff", letter: "f",  cat: "inbox",       scopes: ["Tracking script", "Uptime", "Formularios"] },
+  instagramInbox:{ label: "Instagram Inbox",  color: "#65f042ff", letter: "◎",  cat: "inbox",       scopes: ["Tracking script", "Uptime", "Formularios"] },
+  tiktokInbox:{ label: "TikTok Inbox",     color: "#65f042ff", letter: "♪",  cat: "inbox",       scopes: ["Tracking script", "Uptime", "Formularios"] },
 };
 
 export const CHANNEL_CATEGORIES = [
@@ -93,6 +97,7 @@ export const CHANNEL_CATEGORIES = [
   { id: "ads",       label: "Publicidad / Ads",  icon: "megaphone" as const },
   { id: "analytics", label: "Analítica",          icon: "chart"     as const },
   { id: "web",       label: "Sitio Web",          icon: "globe"     as const },
+  { id: "inbox",     label: "Inbox",          icon: "inbox"     as const },
 ];
 
 // ── Connection records ────────────────────────────────────────────────────────
