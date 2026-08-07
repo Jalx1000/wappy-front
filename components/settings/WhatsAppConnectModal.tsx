@@ -56,7 +56,7 @@ const schema = z.object({
     .string()
     .regex(/^\+?[0-9\s-]+$/, "Formato internacional: +591 70000000"),
   category: z.enum(CATEGORIES_WABA, {
-    errorMap: () => ({ message: "Selecciona una categoría" }),
+    message: "Selecciona una categoría",
   }),
 });
 

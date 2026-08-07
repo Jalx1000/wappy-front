@@ -876,7 +876,7 @@ function ChannelSection() {
                 ...prev,
               ])
             }
-            brand={activeBrand || { id: undefined, name: undefined, slug: undefined }}
+            brand={activeBrand || undefined}
           />
         )}
       </AnimatePresence>

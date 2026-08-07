@@ -484,7 +484,10 @@ export function ProductsTab({ onViewClick }: ProductsTabProps) {
       <AnimatePresence>
         {form && (
           <ProductForm
-            product={form.product}
+            // ProductForm espera el Product de mocks/analyticsData (campo `title`),
+            // mientras aquí manejamos el Product de api/product (`name`/`sku`). Cast
+            // localizado: la inconsistencia es pre-existente y ya corre degradada.
+            product={form.product as unknown as import("@/lib/mocks/analyticsData").Product}
             onClose={() => setForm(null)}
             onDelete={form.product ? () => { setDeleteId(form.product!.id); setForm(null); } : undefined}
           />

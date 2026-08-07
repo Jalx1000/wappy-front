@@ -37,7 +37,7 @@ export const waConnectSchema = z.object({
     .string()
     .regex(/^\+?[0-9\s-]+$/, "Formato internacional: +591 70000000"),
   category: z.enum(WA_WA_CATEGORIES_WA, {
-    errorMap: () => ({ message: "Selecciona una categoría" }),
+    message: "Selecciona una categoría",
   }),
 });
 
