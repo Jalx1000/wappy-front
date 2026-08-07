@@ -7,11 +7,18 @@ FROM node:24.14.1-alpine AS builder
 WORKDIR /usr/src/app
 COPY --from=deps /usr/src/app/node_modules ./node_modules
 COPY . .
-# Build-time env vars (públicas) — para que Next.js las inline en el bundle
+# Build-time env vars (públicas) — para que Next.js las inline en el bundle.
+# OJO: en un build con Dockerfile, Next SOLO ve las NEXT_PUBLIC_* que estén como
+# ENV en esta etapa. Railway inyecta las service vars como --build-arg, pero hay
+# que declararlas aquí o quedan vacías (síntoma: "El SDK de Facebook aún no cargó").
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_USE_MOCKS
+ARG NEXT_PUBLIC_FACEBOOK_APP_ID
+ARG NEXT_PUBLIC_WHATSAPP_ES_CONFIG_ID
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_USE_MOCKS=$NEXT_PUBLIC_USE_MOCKS
+ENV NEXT_PUBLIC_FACEBOOK_APP_ID=$NEXT_PUBLIC_FACEBOOK_APP_ID
+ENV NEXT_PUBLIC_WHATSAPP_ES_CONFIG_ID=$NEXT_PUBLIC_WHATSAPP_ES_CONFIG_ID
 RUN NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
 FROM node:24.14.1-alpine AS runner
