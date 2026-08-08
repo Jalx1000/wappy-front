@@ -206,6 +206,10 @@ export function ContactsView() {
                 setSelId(selected.contact.id);
                 invalidate();
               }}
+              onDeleted={() => {
+                setSelId(undefined);
+                invalidate();
+              }}
             />
           </div>
         )}
@@ -263,12 +267,14 @@ function ContactDetail({
   onOpenChat,
   onSaved,
   onMerged,
+  onDeleted,
 }: {
   data: ContactWithIdentities;
   candidates: ContactWithIdentities[];
   onOpenChat: () => void;
   onSaved: () => void;
   onMerged: () => void;
+  onDeleted: () => void;
 }) {
   const { contact, identities } = data;
   const [editing, setEditing] = useState(false);
@@ -302,6 +308,12 @@ function ContactDetail({
     });
     setEditing(false);
   };
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const removeMut = useMutation({
+    mutationFn: () => contactsApi.remove(contact.id),
+    onSuccess: () => onDeleted(),
+  });
 
   const label = nameOf(data);
   const ch = primaryChannel(data);
@@ -569,6 +581,75 @@ function ContactDetail({
 
         {/* Fusionar */}
         <MergePanel survivor={data} candidates={candidates} onMerged={onMerged} />
+
+        {/* Eliminar (zona de peligro) */}
+        <Card title="Eliminar contacto">
+          {!confirmDelete ? (
+            <div className="flex items-center justify-between gap-3">
+              <span
+                style={{ fontSize: 13, color: "var(--color-text-secondary)" }}
+              >
+                Borra este contacto y sus identidades de canal. No se puede
+                deshacer.
+              </span>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                className="flex items-center gap-2 text-[13px] font-semibold rounded-[10px] px-3.5 py-2 cursor-pointer flex-shrink-0"
+                style={{
+                  background: "var(--color-error-bg)",
+                  color: "var(--color-error)",
+                  border: "1px solid var(--color-error)",
+                }}
+              >
+                <Icon name="trash" size={14} /> Eliminar
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              <span
+                style={{ fontSize: 13, color: "var(--color-text-secondary)" }}
+              >
+                ¿Eliminar <b>{label}</b> definitivamente? Sus conversaciones se
+                conservan.
+              </span>
+              {removeMut.isError && (
+                <span style={{ fontSize: 12, color: "var(--color-error)" }}>
+                  {(removeMut.error as Error)?.message ?? "No se pudo eliminar"}
+                </span>
+              )}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={removeMut.isPending}
+                  className="text-[13px] font-semibold rounded-[10px] px-3.5 py-2 cursor-pointer"
+                  style={{
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    color: "var(--color-text-secondary)",
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeMut.mutate()}
+                  disabled={removeMut.isPending}
+                  className="text-[13px] font-semibold rounded-[10px] px-3.5 py-2 cursor-pointer"
+                  style={{
+                    background: "var(--color-error)",
+                    color: "var(--color-on-primary)",
+                    border: "none",
+                    opacity: removeMut.isPending ? 0.6 : 1,
+                  }}
+                >
+                  {removeMut.isPending ? "Eliminando…" : "Eliminar definitivamente"}
+                </button>
+              </div>
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );

@@ -65,4 +65,7 @@ export const contactsApi = {
     api.post<ContactWithIdentities>(`/contacts/${survivorId}/merge`, {
       loserId,
     }),
+
+  // Hard-deletes a contact and its channel identities.
+  remove: (id: string) => api.delete<{ id: string }>(`/contacts/${id}`),
 };
