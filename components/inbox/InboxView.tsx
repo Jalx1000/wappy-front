@@ -251,6 +251,9 @@ export function InboxView() {
   }, []);
   const showRail = vw >= 960;
   const showDetails = vw >= 1200;
+  // Below this, panes can't sit side-by-side — switch to single-pane
+  // master/detail (list, then thread with a back button).
+  const isMobile = vw < 768;
 
   // Fetch every conversation once; the views rail filters client-side. Shares
   // the query cache with the sidebar badge and the command palette.
@@ -267,7 +270,7 @@ export function InboxView() {
       ? selId
       : (contactParam &&
           conversations.find((c) => c.contact?.id === contactParam)?.id) ||
-        conversations[0]?.id;
+        (isMobile ? undefined : conversations[0]?.id);
   const active = conversations.find((c) => c.id === activeId);
 
   const { data: messages = [], isLoading: loadingThread } = useQuery<
@@ -579,9 +582,11 @@ export function InboxView() {
       className="h-full overflow-hidden"
       style={{
         display: "grid",
-        gridTemplateColumns: [showRail ? "224px" : null, "336px", "1fr", showDetails ? "340px" : null]
-          .filter(Boolean)
-          .join(" "),
+        gridTemplateColumns: isMobile
+          ? "1fr"
+          : [showRail ? "224px" : null, "336px", "1fr", showDetails ? "340px" : null]
+              .filter(Boolean)
+              .join(" "),
       }}
     >
       {showRail && (
@@ -595,7 +600,8 @@ export function InboxView() {
         />
       )}
 
-        {/* List pane */}
+        {/* List pane — on mobile, only when no conversation is open */}
+        {(!isMobile || !active) && (
         <div
           className="flex flex-col min-h-0"
           style={{ borderRight: "1px solid var(--color-border)" }}
@@ -705,8 +711,10 @@ export function InboxView() {
             )}
           </div>
         </div>
+        )}
 
-        {/* Thread pane */}
+        {/* Thread pane — on mobile, only when a conversation is open */}
+        {(!isMobile || active) && (
         <div className="flex flex-col min-h-0">
           {!active ? (
             <div className="flex-1 flex items-center justify-center">
@@ -725,6 +733,27 @@ export function InboxView() {
                   borderBottom: "1px solid var(--color-border)",
                 }}
               >
+                {isMobile && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelId(undefined);
+                      if (contactParam)
+                        router.replace("/app/inbox", { scroll: false });
+                    }}
+                    aria-label="Volver a la lista"
+                    className="flex items-center justify-center rounded-[9px] cursor-pointer flex-shrink-0"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      background: "var(--color-background)",
+                      border: "1px solid var(--color-border)",
+                      color: "var(--color-text-secondary)",
+                    }}
+                  >
+                    <Icon name="chevronL" size={18} />
+                  </button>
+                )}
                 <ChannelDot
                   channel={metaKey(active.channel)}
                   size={34}
@@ -759,7 +788,7 @@ export function InboxView() {
                       color: "var(--color-text-secondary)",
                     }}
                   >
-                    <Icon name="user" size={14} /> Ver contacto
+                    <Icon name="user" size={14} /> {!isMobile && "Ver contacto"}
                   </button>
                 )}
                 <button
@@ -774,7 +803,7 @@ export function InboxView() {
                     color: sideOpen ? "var(--color-warning)" : "var(--color-text-secondary)",
                   }}
                 >
-                  <Icon name="users" size={14} /> Consultar
+                  <Icon name="users" size={14} /> {!isMobile && "Consultar"}
                   {(convoStateById[active.id]?.sideThread.length ?? 0) > 0 && (
                     <span className="fobo-badge bg-[var(--color-warning-bg)] text-[var(--color-warning)]" style={{ padding: "0 6px", fontSize: 10 }}>{convoStateById[active.id]?.sideThread.length}</span>
                   )}
@@ -1407,6 +1436,7 @@ export function InboxView() {
             </>
           )}
         </div>
+        )}
 
       {showDetails &&
         (active ? (
