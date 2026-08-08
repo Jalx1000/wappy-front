@@ -200,8 +200,11 @@ export function ContactsTable({ contacts, selectedId, onSelect }: {
               const chs = [...new Set(c.identities.map((i) => i.channel))];
               const ctags = tags.filter((t) => (byContact[id] || []).includes(t.id));
               return (
-                <div key={id} onClick={() => onSelect(id)} className="grid items-center cursor-pointer"
-                  style={{ gridTemplateColumns: gridTemplate, gap: 12, padding: "11px 20px", borderBottom: "1px solid var(--color-border)", background: on ? "var(--color-primary-subtle)" : "transparent" }}
+                <div key={id} onClick={() => onSelect(id)}
+                  role="button" tabIndex={0} aria-pressed={on} aria-label={labelOf(c)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(id); } }}
+                  className="grid items-center cursor-pointer fobo-focus-ring"
+                  style={{ gridTemplateColumns: gridTemplate, gap: 12, padding: "11px 20px", borderBottom: "1px solid var(--color-border)", background: on ? "var(--color-primary-subtle)" : "transparent", transition: "background 120ms" }}
                   onMouseEnter={(e) => { if (!on) e.currentTarget.style.background = "var(--neutral-50)"; }}
                   onMouseLeave={(e) => { if (!on) e.currentTarget.style.background = "transparent"; }}>
                   <input type="checkbox" checked={picked.has(id)} onChange={() => toggleOne(id)} onClick={(e) => e.stopPropagation()} aria-label="Seleccionar" style={{ cursor: "pointer" }} />

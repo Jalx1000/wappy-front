@@ -77,10 +77,10 @@ export function ContactsFilters({ contacts, rules, onChange }: {
                 </select>
               )}
               {fieldDef.kind === "text" && (
-                <input autoFocus value={draft.value} onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} placeholder="Escribe un valor…" style={{ ...sel, height: 36 }} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
+                <input autoFocus aria-label="Valor del filtro" value={draft.value} onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} placeholder="Escribe un valor…" style={{ ...sel, height: 36 }} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
               )}
               {fieldDef.kind === "days" && (
-                <input autoFocus type="number" min={1} value={draft.value} onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} placeholder="Nº de días" style={{ ...sel, height: 36 }} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
+                <input autoFocus aria-label="Número de días" type="number" min={1} value={draft.value} onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} placeholder="Nº de días" style={{ ...sel, height: 36 }} onKeyDown={(e) => { if (e.key === "Enter") commit(); }} />
               )}
               {fieldDef.kind === "channel" && (
                 <select value={draft.value} onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))} style={sel}>
@@ -115,7 +115,7 @@ export function ContactsFilters({ contacts, rules, onChange }: {
                 <div className="fixed inset-0 z-[40]" onClick={() => setSaveOpen(false)} />
                 <div className="absolute z-[41] flex flex-col gap-2" style={{ top: "calc(100% + 6px)", right: 0, width: 240, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, boxShadow: "var(--shadow-3)", padding: 12 }}>
                   <div className="text-[12px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Nombre del segmento</div>
-                  <input autoFocus value={segName} onChange={(e) => setSegName(e.target.value)} placeholder="p. ej. VIP inactivos" style={{ ...sel, height: 36 }}
+                  <input autoFocus aria-label="Nombre del segmento" value={segName} onChange={(e) => setSegName(e.target.value)} placeholder="p. ej. VIP inactivos" style={{ ...sel, height: 36 }}
                     onKeyDown={(e) => { if (e.key === "Enter" && segName.trim()) { saveSegment(segName.trim(), rules); setSaveOpen(false); } }} />
                   <button onClick={() => { if (segName.trim()) { saveSegment(segName.trim(), rules); setSaveOpen(false); } }} disabled={!segName.trim()}
                     className="fobo-btn fobo-btn-primary fobo-btn-sm" style={{ opacity: segName.trim() ? 1 : 0.5 }}>Guardar</button>

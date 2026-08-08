@@ -325,6 +325,25 @@ body {
   box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
+/* Keyboard-only focus ring for custom interactive elements (rows, cards) that
+   are not native inputs. Uses :focus-visible so a mouse click doesn't show it. */
+.fobo-focus-ring:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* Respect users who ask for less motion (a11y). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 .fobo-badge {
   display: inline-flex;
   align-items: center;

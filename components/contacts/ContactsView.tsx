@@ -123,6 +123,13 @@ export function ContactsView() {
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["contacts", "list", brandId] });
 
+  // Select + reflect it in the URL so the view is shareable and the back button
+  // restores the previous contact.
+  const selectContact = (id: string) => {
+    setSelId(id);
+    router.replace(`/app/contacts?id=${id}`, { scroll: false });
+  };
+
   return (
     <div
       className="h-full overflow-hidden"
@@ -158,6 +165,16 @@ export function ContactsView() {
                   background: "var(--color-background)",
                   color: "var(--color-text-primary)",
                   fontFamily: "var(--ff-ui)",
+                  transition: "border-color 150ms, box-shadow 150ms",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--color-primary-ink)";
+                  e.currentTarget.style.boxShadow =
+                    "0 0 0 3px var(--color-primary-light)";
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--color-border)";
+                  e.currentTarget.style.boxShadow = "none";
                 }}
               />
             </div>
@@ -182,7 +199,7 @@ export function ContactsView() {
               />
             </div>
           ) : (
-            <ContactsTable contacts={visibleContacts} selectedId={selectedId} onSelect={setSelId} />
+            <ContactsTable contacts={visibleContacts} selectedId={selectedId} onSelect={selectContact} />
           )}
         </div>
 
