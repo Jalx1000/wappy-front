@@ -23,8 +23,8 @@ const generalSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Fobo Metrics", template: "%s · Fobo" },
-  description: "Portal de reporting y operaciones de marketing de Fobo Agency",
+  title: { default: "Wappy", template: "%s · Wappy" },
+  description: "Portal de reporting y operaciones de marketing de Wappy",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

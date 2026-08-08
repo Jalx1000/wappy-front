@@ -77,7 +77,7 @@ export function LoginForm() {
       <div
         className="hidden lg:flex flex-col flex-none w-[44%] min-w-[380px] relative overflow-hidden p-[48px]"
         style={{
-          background: "var(--color-brand-gradient)",
+          // background: "var(--color-brand-gradient)",
           color: "#fff",
         }}
       >
@@ -102,19 +102,15 @@ export function LoginForm() {
         />
         {/* Logo */}
         <div className="flex items-center gap-3 flex-none">
-          <div
-            className="flex items-center justify-center rounded-[10px] font-bold"
+          <img
+            src="../wappy-logotipo.jpg"
+            alt="wappy"
+            className="flex items-center justify-center rounded-[10px] font-bold text-white"
             style={{
-              width: 38, height: 38,
-              background: "rgba(255,255,255,0.16)",
-              border: "1px solid rgba(255,255,255,0.25)",
-              fontFamily: "var(--font-display)",
-              fontSize: 20,
-              letterSpacing: "-0.04em",
+              width: 40,
+              height: 40,
             }}
-          >
-            f
-          </div>
+          />  
           <span
             style={{
               fontFamily: "var(--font-display)",
@@ -123,16 +119,7 @@ export function LoginForm() {
               letterSpacing: "-0.04em",
             }}
           >
-            fobo
-          </span>
-          <span
-            className="text-[10px] font-bold px-[7px] py-[3px] rounded-[5px]"
-            style={{
-              background: "rgba(255,255,255,0.16)",
-              letterSpacing: "0.07em",
-            }}
-          >
-            AGENCY
+            Wappy
           </span>
         </div>
 
@@ -146,15 +133,15 @@ export function LoginForm() {
               fontSize: 38,
             }}
           >
-            El centro de operaciones de tu agencia.
+            Support that feels effortless.
           </h1>
           <p
             className="text-[15px] leading-[1.55] mt-4 mb-[30px]"
             style={{ opacity: 0.85 }}
           >
-            Todas tus marcas, redes, campañas y reportes en un solo lugar.
+            Every conversation of WhatsApp, email, web chat - in one fast, shared inbox. Reply in seconds with your AI Copilot.
           </p>
-          <div className="flex flex-col gap-[14px]">
+          {/* <div className="flex flex-col gap-[14px]">
             {[
               ["chart",    "Analítica social, web y paid unificada"],
               ["calendar", "Contenido, calendario y aprobaciones"],
@@ -173,15 +160,15 @@ export function LoginForm() {
                 {text}
               </div>
             ))}
-          </div>
+          </div> */}
         </div>
         <div className="text-[12px] flex-none" style={{ opacity: 0.6 }}>
-          © 2026 Fobo · Santa Cruz de la Sierra
+          SOC 2 compliant · GDPR-ready
         </div>
       </div>
 
       {/* Form panel */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-8 ">
         <motion.div
           key={view}
           initial={{ opacity: 0, y: 8 }}
@@ -310,7 +297,7 @@ export function LoginForm() {
               </button>
 
               <div className="text-[13px] text-center" style={{ color: "var(--color-text-secondary)" }}>
-                ¿Tu agencia aún no usa Fobo?{" "}
+                ¿Tu empresa aún no usa Wappy?{" "}
                 <a
                   href="#"
                   className="font-semibold no-underline"

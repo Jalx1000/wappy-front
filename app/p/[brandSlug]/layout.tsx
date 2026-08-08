@@ -5,7 +5,7 @@ export async function generateMetadata({ params }: { params: Promise<{ brandSlug
   const { brandSlug } = await params;
   const brand = BRANDS.find((b) => b.id === brandSlug);
   return {
-    title: brand ? `${brand.name} · Métricas` : "Portal · Fobo",
+    title: brand ? `${brand.name} · Métricas` : "Portal · Wappy",
   };
 }
 
