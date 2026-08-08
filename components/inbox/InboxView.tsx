@@ -582,9 +582,18 @@ export function InboxView() {
       className="h-full overflow-hidden"
       style={{
         display: "grid",
+        // The thread track is minmax(0, 1fr) — a plain 1fr has an implicit
+        // min-width of min-content, so wide thread content (header buttons,
+        // media, long bubbles) would blow the track out and push the fixed
+        // details column off/misaligned. minmax(0,…) lets it shrink instead.
         gridTemplateColumns: isMobile
-          ? "1fr"
-          : [showRail ? "224px" : null, "336px", "1fr", showDetails ? "340px" : null]
+          ? "minmax(0, 1fr)"
+          : [
+              showRail ? "224px" : null,
+              "336px",
+              "minmax(0, 1fr)",
+              showDetails ? "340px" : null,
+            ]
               .filter(Boolean)
               .join(" "),
       }}
@@ -715,7 +724,7 @@ export function InboxView() {
 
         {/* Thread pane — on mobile, only when a conversation is open */}
         {(!isMobile || active) && (
-        <div className="flex flex-col min-h-0">
+        <div className="flex flex-col min-h-0 min-w-0">
           {!active ? (
             <div className="flex-1 flex items-center justify-center">
               <EmptyState
