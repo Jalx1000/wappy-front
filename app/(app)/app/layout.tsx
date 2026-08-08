@@ -7,10 +7,14 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { CommandPalette } from "@/components/ui/CommandPalette";
 import { OnboardingLauncher } from "@/components/onboarding/OnboardingLauncher";
 import { useUIStore } from "@/store/ui";
+import { useInboxRealtime } from "@/lib/realtime/useInboxRealtime";
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const { toggleSidebar, setCommandPaletteOpen } = useUIStore();
   const [hydrated, setHydrated] = useState(false);
+
+  // Live inbox updates over socket.io (/rt). No-ops until a brand is active.
+  useInboxRealtime();
 
   // Hidratar zustand persist solo después del mount → evita el hydration
   // mismatch (React error #418) entre SSR y client. El store está marcado
