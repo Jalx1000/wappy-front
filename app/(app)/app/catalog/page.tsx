@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
-import { CatalogView } from "@/components/catalog/CatalogView";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "Catálogo" };
-
+// Catálogo se consolidó en Productos (la vista real, backed por `/products`).
+// Se conserva `components/catalog/CatalogView.tsx` por si se repurpone a un
+// catálogo público más adelante.
 export default function Page() {
-  return <CatalogView />;
+  redirect("/app/products");
 }

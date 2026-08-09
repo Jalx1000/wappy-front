@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Icon } from "@/components/ui/Icon";
 import { WappyLogo } from "@/components/shell/WappyLogo";
 import { useUIStore } from "@/store/ui";
+import { useAttributesStore } from "@/store/attributes";
 import { useMe } from "@/lib/hooks";
 import { socialInboxApi } from "@/lib/api/socialInbox";
 import { cn } from "@/lib/utils";
@@ -82,7 +83,6 @@ const NAV: NavSection[] = [
     section: "Venta",
     items: [
       { id: "products",    label: "Productos", icon: "products",  href: "/app/products"},
-      { id: "catalog",     label: "Catálogo",  icon: "box",       href: "/app/catalog" },
       { id: "attributes",  label: "Atributos", icon: "database",  href: "/app/attributes" },
     ],
   },
@@ -95,6 +95,10 @@ interface SidebarProps {
 export function Sidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar, activeBrand } = useUIStore();
+
+  // Módulos personalizados (custom objects) creados en Atributos → nav dinámico.
+  const modules = useAttributesStore((s) => s.modules);
+  const customModules = modules.filter((m) => !m.system);
 
   // Live Inbox count — shares the same query cache as the inbox view.
   const brandId = activeBrand?.id;
@@ -208,6 +212,41 @@ export function Sidebar({ onLogout }: SidebarProps) {
             })}
           </div>
         ))}
+
+        {/* Módulos personalizados (dinámico, desde el store de Atributos) */}
+        {customModules.length > 0 && (
+          <div className="mb-[14px]">
+            {!sidebarCollapsed && (
+              <div
+                className="text-[10.5px] font-bold uppercase px-[10px] pb-[6px] pt-1"
+                style={{ letterSpacing: "0.06em", color: "var(--color-text-tertiary)" }}
+              >
+                Módulos
+              </div>
+            )}
+            {customModules.map((m) => {
+              const href = `/app/objects/${m.id}`;
+              const isActive = pathname.startsWith(href);
+              return (
+                <Link key={m.id} href={href} className="block mb-[1px]">
+                  <span
+                    className={cn("fobo-nav-item", isActive && "active")}
+                    style={sidebarCollapsed ? { justifyContent: "center", padding: "0 0" } : {}}
+                    title={sidebarCollapsed ? m.name : undefined}
+                  >
+                    <Icon
+                      name={m.icon}
+                      size={18}
+                      strokeWidth={isActive ? 2 : 1.8}
+                      className="flex-shrink-0"
+                    />
+                    {!sidebarCollapsed && <span className="flex-1 truncate">{m.name}</span>}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Footer: settings + user */}

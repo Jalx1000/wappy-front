@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { Icon } from "@/components/ui/Icon";
 import { useUIStore } from "@/store/ui";
+import { useAttributesStore } from "@/store/attributes";
 import { useBrands } from "@/lib/hooks";
 import { contactsApi } from "@/lib/api/contacts";
 import { socialInboxApi } from "@/lib/api/socialInbox";
@@ -43,7 +44,6 @@ const NAV_CMDS: Omit<Cmd, "section">[] = [
   { id: "contacts",     label: "Contactos",          icon: "users",     href: "/app/contacts" },
   { id: "companies",    label: "Empresas",           icon: "building",  href: "/app/companies" },
   { id: "tags",         label: "Etiquetas",          icon: "tag",       href: "/app/tags" },
-  { id: "catalog",      label: "Catálogo",           icon: "box",       href: "/app/catalog" },
   { id: "attributes",   label: "Atributos",          icon: "database",  href: "/app/attributes" },
   { id: "help-center",  label: "Centro de ayuda",    icon: "book",      href: "/app/help-center" },
   { id: "bot-builder",  label: "Bot Builder",        icon: "bot",       href: "/app/bot-builder" },
@@ -65,7 +65,7 @@ const ACTION_CMDS: Omit<Cmd, "section">[] = [
   { id: "new-automation", label: "Nueva automatización",  icon: "zap",      href: "/app/automations" },
   { id: "new-article",    label: "Nuevo artículo",        icon: "fileText", href: "/app/help-center" },
   { id: "new-campaign",   label: "Nueva campaña",         icon: "megaphone", href: "/app/broadcasts" },
-  { id: "new-product",    label: "Nuevo producto",        icon: "box",      href: "/app/catalog" },
+  { id: "new-product",    label: "Nuevo producto",        icon: "box",      href: "/app/products" },
 ];
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -140,6 +140,7 @@ export function CommandPalette() {
   // while the palette is open; help articles come from the client store.
   const brandId = activeBrand?.id;
   const articles = useHelpCenterStore((s) => s.articles);
+  const customModules = useAttributesStore((s) => s.modules).filter((m) => !m.system);
   const { data: contactsPage } = useQuery({
     queryKey: ["contacts", "list", brandId, ""],
     queryFn: () => contactsApi.list({ limit: 50 }),
@@ -200,8 +201,19 @@ export function CommandPalette() {
     href: c.contact?.id ? `/app/inbox?contact=${c.contact.id}` : "/app/inbox",
   }));
 
+  // Módulos personalizados (custom objects) → navegables desde ⌘K.
+  const moduleCmds: Cmd[] = customModules.map((m) => ({
+    id: `mod-${m.id}`,
+    label: m.name,
+    sub: "Módulo",
+    icon: m.icon,
+    section: "Módulos",
+    href: `/app/objects/${m.id}`,
+  }));
+
   const allCmds: Cmd[] = [
     ...NAV_CMDS.map((c) => ({ ...c, section: "Navegar" })),
+    ...moduleCmds,
     ...brandCmds,
     ...ACTION_CMDS.map((c) => ({ ...c, section: "Acciones rápidas" })),
     ...(query.trim() ? [...contactCmds, ...convoCmds, ...articleCmds] : []),
