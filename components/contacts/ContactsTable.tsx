@@ -8,6 +8,7 @@ import { useTagsStore } from "@/store/tags";
 import { tagDot } from "@/components/tags/data";
 import { useContactTagsStore } from "@/store/contactTags";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import type { ContactWithIdentities } from "@/lib/api/contacts";
 
 const colHead: CSSProperties = { fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--color-text-tertiary)" };
@@ -38,8 +39,9 @@ const relTime = (iso?: string | null) => {
 
 type SortCol = "name" | "created" | "activity";
 
-export function ContactsTable({ contacts, selectedId, onSelect }: {
+export function ContactsTable({ contacts, selectedId, onSelect, onBulkDelete }: {
   contacts: ContactWithIdentities[]; selectedId?: string; onSelect: (id: string) => void;
+  onBulkDelete?: (ids: string[]) => Promise<void>;
 }) {
   const tags = useTagsStore((s) => s.tags);
   const byContact = useContactTagsStore((s) => s.byContact);
@@ -48,6 +50,8 @@ export function ContactsTable({ contacts, selectedId, onSelect }: {
   const [sort, setSort] = useState<{ col: SortCol; dir: 1 | -1 }>({ col: "activity", dir: -1 });
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [confirmBulk, setConfirmBulk] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [view, setView] = useState<"list" | "chart">("list");
   const [colsOpen, setColsOpen] = useState(false);
   const [visibleCols, setVisibleCols] = useState<Set<OptCol>>(new Set(["channel", "tags", "created", "activity"]));
@@ -91,6 +95,21 @@ export function ContactsTable({ contacts, selectedId, onSelect }: {
     setPicked(new Set());
   };
 
+  const handleBulkDelete = async () => {
+    const ids = [...picked];
+    setDeleting(true);
+    try {
+      await onBulkDelete?.(ids);
+      toast(`${ids.length} contacto${ids.length !== 1 ? "s" : ""} eliminado${ids.length !== 1 ? "s" : ""}`);
+      setPicked(new Set());
+      setConfirmBulk(false);
+    } catch {
+      toast("No se pudieron eliminar los contactos", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const viewBtn = (v: "list" | "chart", icon: "list" | "barChart3", label: string) => (
     <button onClick={() => setView(v)} title={label} aria-label={label} className="flex items-center justify-center cursor-pointer"
       style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--color-border)", background: view === v ? "var(--color-primary-subtle)" : "var(--color-surface)", color: view === v ? "var(--color-primary-ink)" : "var(--color-text-secondary)" }}>
@@ -122,6 +141,15 @@ export function ContactsTable({ contacts, selectedId, onSelect }: {
                 </>
               )}
             </div>
+            {onBulkDelete && (
+              <button
+                onClick={() => setConfirmBulk(true)}
+                className="fobo-btn fobo-btn-sm"
+                style={{ background: "var(--color-error-bg)", color: "var(--color-error)" }}
+              >
+                <Icon name="trash" size={14} /> Eliminar
+              </button>
+            )}
           </>
         )}
 
@@ -240,6 +268,16 @@ export function ContactsTable({ contacts, selectedId, onSelect }: {
             })}
           </div>
         </>
+      )}
+
+      {confirmBulk && (
+        <ConfirmModal
+          title={`Eliminar ${picked.size} contacto${picked.size !== 1 ? "s" : ""}`}
+          message="Esta acción elimina los contactos seleccionados y sus identidades de canal de forma permanente. No se puede deshacer."
+          confirmLabel={deleting ? "Eliminando…" : "Eliminar"}
+          onClose={() => { if (!deleting) setConfirmBulk(false); }}
+          onConfirm={handleBulkDelete}
+        />
       )}
     </div>
   );

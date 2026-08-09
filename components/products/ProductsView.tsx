@@ -1,9 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Icon } from "@/components/ui/Icon";
 import { useProducts } from "@/lib/hooks";
 import { useUIStore } from "@/store/ui";
+import { useToast } from "@/components/ui/Toast";
+import { useAttributesStore } from "@/store/attributes";
+import { FieldFormModal } from "@/components/attributes/AttributesModals";
+import type { FieldDef } from "@/components/attributes/data";
+import { uid } from "@/lib/id";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import type { IconName } from "@/components/ui/Icon";
 import { ProductsTab } from "./ProductsTab";
@@ -19,9 +25,21 @@ const formatCurrency = (amount: number) =>
 
 export function ProductsView() {
   const [activeForm, setActiveForm] = useState(false);
+  const [fieldModal, setFieldModal] = useState(false);
   const { activeBrand } = useUIStore();
+  const setModules = useAttributesStore((s) => s.setModules);
+  const toast = useToast();
   const brandId = activeBrand?.id ?? BRANDS_FALLBACK[0].id;
   const { data: products = [] } = useProducts(brandId, { limit: 50 });
+
+  // Alta de atributo personalizado → se añade al módulo "products" de Atributos.
+  const saveField = (data: FieldDef) => {
+    setModules((prev) =>
+      prev.map((m) => (m.id === "products" ? { ...m, fields: [...m.fields, { ...data, id: uid("fld_") }] } : m)),
+    );
+    toast("Atributo añadido a Productos", "success");
+    setFieldModal(false);
+  };
 
   const stats = useMemo<Array<{ label: string; value: string; hint: string; icon: IconName }>>(() => {
     const currentBrandId = Number(brandId);
@@ -71,6 +89,14 @@ export function ProductsView() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap lg:justify-end">
+            <Link href="/app/attributes?module=products" className="fobo-btn fobo-btn-secondary fobo-btn-sm">
+              <Icon name="settings" size={15} />
+              Gestionar campos
+            </Link>
+            <button className="fobo-btn fobo-btn-secondary fobo-btn-sm" onClick={() => setFieldModal(true)}>
+              <Icon name="database" size={15} />
+              Añadir atributo
+            </button>
             <button className="fobo-btn fobo-btn-secondary fobo-btn-sm">
               <Icon name="download" size={15} />
               Exportar
@@ -110,6 +136,7 @@ export function ProductsView() {
         <ProductsTab />
       </div>
       {activeForm && <ProductForm onClose={() => setActiveForm(false)} />}
+      {fieldModal && <FieldFormModal onClose={() => setFieldModal(false)} onSave={saveField} />}
     </div>
   );
 }

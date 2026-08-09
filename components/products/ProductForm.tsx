@@ -8,8 +8,48 @@ import { useCreateProduct, useUpdateProduct } from "@/lib/hooks";
 import { useUIStore } from "@/store/ui";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import type { Product } from "@/lib/mocks/analyticsData";
+import { useProductCustomFields } from "@/lib/productFields";
+import { useProductAttributesStore } from "@/store/product-attributes";
+import type { AttrValue, FieldDef } from "@/components/attributes/data";
 
 const CATEGORIES = ["Electronics", "Apparel", "Services", "Subscriptions"];
+
+/** Input para un campo personalizado según su tipo (ligero — el editor completo
+ *  del esquema vive en Atributos). */
+function renderCustomInput(f: FieldDef, value: AttrValue, onChange: (v: AttrValue) => void) {
+  if (f.type === "boolean") {
+    return (
+      <label className="flex items-center gap-2 h-[42px] text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+        <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked)} />
+        {value ? "Sí" : "No"}
+      </label>
+    );
+  }
+  if (f.type === "select") {
+    return (
+      <select className="fobo-input" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+        <option value="">Select…</option>
+        {(f.options ?? []).map((o) => (
+          <option key={o} value={o}>{o}</option>
+        ))}
+      </select>
+    );
+  }
+  if (["number", "decimal", "currency", "percent"].includes(f.type)) {
+    return (
+      <input
+        type="number"
+        className="fobo-input"
+        value={(value as number | string) ?? ""}
+        onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
+      />
+    );
+  }
+  if (f.type === "date") {
+    return <input type="date" className="fobo-input" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value || null)} />;
+  }
+  return <input className="fobo-input" value={(value as string) ?? ""} onChange={(e) => onChange(e.target.value)} />;
+}
 
 interface ProductFormProps {
   product?: Product;
@@ -42,6 +82,15 @@ export function ProductForm({ product, onClose, onDelete }: ProductFormProps) {
   const [image, setImage] = useState(p.image ?? "");
   const [isActive, setIsActive] = useState(p.isActive ?? true);
 
+  // Campos personalizados (definiciones en Atributos → módulo "products";
+  // valores cliente-side por producto mientras el backend no los persista).
+  const customFields = useProductCustomFields();
+  const setProductValues = useProductAttributesStore((s) => s.setValues);
+  const savedCustom = useProductAttributesStore((s) => (product?.id ? s.values[product.id] : undefined));
+  const [customVals, setCustomVals] = useState<Record<string, AttrValue>>(savedCustom ?? {});
+  const setCustom = (key: string, value: AttrValue) =>
+    setCustomVals((prev) => ({ ...prev, [key]: value }));
+
   const handleSave = () => {
     if (!resolvedBrandId) {
       toast("Marca no identificada", "error");
@@ -68,6 +117,7 @@ export function ProductForm({ product, onClose, onDelete }: ProductFormProps) {
 
     if (product) {
       update.mutate({ id: product.id, data: payload });
+      if (customFields.length) setProductValues(product.id, customVals);
     } else {
       create.mutate(payload);
     }
@@ -233,6 +283,33 @@ export function ProductForm({ product, onClose, onDelete }: ProductFormProps) {
                 </span>
               </div>
             </div>
+
+            {customFields.length > 0 && (
+              <div className="border-t pt-4" style={{ borderColor: "var(--color-border)" }}>
+                <div
+                  className="text-[12px] font-semibold uppercase mb-3"
+                  style={{ color: "var(--color-text-tertiary)", letterSpacing: "0.04em" }}
+                >
+                  Campos personalizados
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {customFields.map((f) => (
+                    <div key={f.id}>
+                      <label className="text-[12px] font-semibold block mb-2" style={{ color: "var(--color-text-secondary)" }}>
+                        {f.label}
+                        {f.required ? " *" : ""}
+                      </label>
+                      {renderCustomInput(f, customVals[f.key], (v) => setCustom(f.key, v))}
+                    </div>
+                  ))}
+                </div>
+                {!product && (
+                  <div className="text-[11.5px] mt-2" style={{ color: "var(--color-text-tertiary)" }}>
+                    Los valores personalizados se guardan al editar el producto una vez creado.
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               {product && onDelete && (

@@ -24,6 +24,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import type { BadgeVariant } from "@/components/ui/Badge";
 import { ProductForm } from "./ProductForm";
 import type { Product } from "@/lib/api/product";
+import { useProductCustomFields } from "@/lib/productFields";
+import { useProductAttributesStore } from "@/store/product-attributes";
+import { formatValue } from "@/components/attributes/data";
 
 const STATUSES = ["Todos", "Desactivado", "Activo"];
 
@@ -185,6 +188,8 @@ export function ProductsTab({ onViewClick }: ProductsTabProps) {
   const deleteProduct = useDeleteProduct(brandId);
   const updateProduct = useUpdateProduct(brandId);
   const toast = useToast();
+  const customFields = useProductCustomFields();
+  const attrValues = useProductAttributesStore((s) => s.values);
 
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: PAGE_SIZE_OPTIONS[0] });
@@ -318,6 +323,24 @@ export function ProductsTab({ onViewClick }: ProductsTabProps) {
       },
       size: 80,
     },
+    ...customFields.map((f): ColumnDef<Product> => ({
+      id: `cf_${f.id}`,
+      header: f.label,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const v = attrValues[row.original.id]?.[f.key];
+        if (f.type === "boolean") {
+          return <Badge variant={v ? "success" : "neutral"}>{v ? "Sí" : "No"}</Badge>;
+        }
+        const s = formatValue(f, v);
+        return (
+          <span className="text-[13px]" style={{ color: "var(--color-text-secondary)" }}>
+            {s || "—"}
+          </span>
+        );
+      },
+      size: 130,
+    })),
     {
       id: "actions",
       header: "",
@@ -348,7 +371,7 @@ export function ProductsTab({ onViewClick }: ProductsTabProps) {
       ),
       size: 100,
     },
-  ], [onViewClick, toast, updateProduct]);
+  ], [onViewClick, toast, updateProduct, customFields, attrValues]);
 
   const table = useReactTable({
     data,

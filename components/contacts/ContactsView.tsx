@@ -123,6 +123,14 @@ export function ContactsView() {
   const invalidate = () =>
     qc.invalidateQueries({ queryKey: ["contacts", "list", brandId] });
 
+  // Eliminación masiva: llama al DELETE real por contacto (endpoint existente) y
+  // refresca la lista. Deselecciona si el contacto abierto estaba en el lote.
+  const bulkDelete = async (ids: string[]) => {
+    await Promise.all(ids.map((id) => contactsApi.remove(id)));
+    if (selectedId && ids.includes(selectedId)) setSelId(undefined);
+    await invalidate();
+  };
+
   // Select + reflect it in the URL so the view is shareable and the back button
   // restores the previous contact.
   const selectContact = (id: string) => {
@@ -199,7 +207,7 @@ export function ContactsView() {
               />
             </div>
           ) : (
-            <ContactsTable contacts={visibleContacts} selectedId={selectedId} onSelect={selectContact} />
+            <ContactsTable contacts={visibleContacts} selectedId={selectedId} onSelect={selectContact} onBulkDelete={bulkDelete} />
           )}
         </div>
 
