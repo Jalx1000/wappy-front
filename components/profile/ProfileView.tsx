@@ -1,124 +1,260 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
-import { Icon, type IconName } from "@/components/ui/Icon";
+import { useEffect, useState, type CSSProperties } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
-import { useProfileStore } from "@/store/profile";
-import { AVAIL_COLORS, type Availability, type AgentProfile } from "./data";
+import { useMe, useUpdateMe } from "@/lib/hooks";
+import { ApiError } from "@/lib/api/client";
+import type { AuthMe } from "@/lib/api/auth";
 
 const card: CSSProperties = { background: "var(--color-surface)", borderRadius: 16, border: "1px solid var(--color-border)", marginBottom: 18 };
 const cardHead: CSSProperties = { padding: "16px 20px", borderBottom: "1px solid var(--color-border)", display: "flex", alignItems: "center" };
 const fieldLabel: CSSProperties = { display: "block", fontSize: 12, fontWeight: 500, color: "var(--color-text-secondary)", marginBottom: 6 };
 const valRow: CSSProperties = { display: "flex", alignItems: "center", padding: "13px 20px", borderBottom: "1px solid var(--color-border)" };
+const errText: CSSProperties = { fontSize: 12, color: "var(--color-error)", marginTop: 5 };
+const banner: CSSProperties = { height: 120, background: "linear-gradient(110deg, var(--color-primary) 0%, var(--color-primary-bright) 100%)" };
 
-const AVAIL: Availability[] = ["Disponible", "Ausente", "Ocupado"];
-const STATS: { label: string; value: string; icon: IconName }[] = [
-  { label: "Conversaciones", value: "1,284", icon: "inbox" },
-  { label: "Resp. media", value: "2m 14s", icon: "clock" },
-  { label: "CSAT", value: "97%", icon: "star" },
-  { label: "Resueltas", value: "1,209", icon: "check" },
-];
+const initialsOf = (name: string) => name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 
-const initialsOf = (name: string) => name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+const accountSchema = z.object({
+  firstName: z.string().min(1, "Requerido").max(80),
+  lastName: z.string().min(1, "Requerido").max(80),
+  email: z.string().email("Email inválido"),
+});
+type AccountForm = z.infer<typeof accountSchema>;
+
+const securitySchema = z
+  .object({
+    oldPassword: z.string().min(4, "Mínimo 4 caracteres"),
+    password: z.string().min(4, "Mínimo 4 caracteres"),
+    confirm: z.string().min(4, "Mínimo 4 caracteres"),
+  })
+  .refine((v) => v.password === v.confirm, { message: "Las contraseñas no coinciden", path: ["confirm"] });
+type SecurityForm = z.infer<typeof securitySchema>;
+
+/** Extracts a human message from a NestJS validation/error response. */
+function serverErrorMessage(e: unknown): string {
+  if (e instanceof ApiError) {
+    if (e.status === 422 && e.details && typeof e.details === "object") {
+      const det = e.details as { errors?: Record<string, string> };
+      const first = det.errors ? Object.values(det.errors)[0] : undefined;
+      return first ?? e.message;
+    }
+    return e.message;
+  }
+  return "Error inesperado";
+}
 
 export function ProfileView() {
-  const { profile, setProfile } = useProfileStore();
-  const toast = useToast();
-  const [edit, setEdit] = useState(false);
-  const [form, setForm] = useState<AgentProfile>(profile);
-  const set = <K extends keyof AgentProfile>(k: K, v: AgentProfile[K]) => setForm((f) => ({ ...f, [k]: v }));
-  const save = () => { setProfile(form); setEdit(false); toast("Perfil guardado"); };
-  const cancel = () => { setForm(profile); setEdit(false); };
-  const startEdit = () => { setForm(profile); setEdit(true); };
+  const { data: me, isPending, isError } = useMe();
+
+  if (isPending) return <ProfileSkeleton />;
+  if (isError || !me) return <ProfileError />;
+
+  const fullName = [me.firstName, me.lastName].filter(Boolean).join(" ") || me.email;
 
   return (
     <div style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "var(--color-background)" }}>
-      <div style={{ height: 120, background: "linear-gradient(110deg, var(--color-primary) 0%, var(--color-primary-bright) 100%)" }} />
+      <div style={banner} />
       <div className="mx-auto" style={{ maxWidth: 720, padding: "0 24px 40px" }}>
         <div className="flex items-end gap-[18px]" style={{ marginTop: -40, marginBottom: 24 }}>
-          <span className="flex items-center justify-center rounded-full flex-none" style={{ width: 96, height: 96, fontSize: 34, fontWeight: 700, background: "var(--color-primary)", color: "var(--color-on-primary)", border: "4px solid var(--color-background)" }}>{initialsOf(profile.name)}</span>
+          <span
+            className="flex items-center justify-center rounded-full flex-none"
+            style={{ width: 96, height: 96, fontSize: 34, fontWeight: 700, background: "var(--color-primary)", color: "var(--color-on-primary)", border: "4px solid var(--color-background)" }}
+          >
+            {initialsOf(fullName)}
+          </span>
           <div className="flex-1" style={{ paddingBottom: 6 }}>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>{profile.name}</div>
-            <div style={{ fontSize: 13.5, color: "var(--color-text-secondary)" }}>{profile.role} · {profile.email}</div>
-          </div>
-          {!edit && <button className="fobo-btn fobo-btn-secondary fobo-btn-sm" style={{ marginBottom: 6 }} onClick={startEdit}><Icon name="edit" size={16} /> Editar perfil</button>}
-        </div>
-
-        {/* Availability */}
-        <div style={card}>
-          <div style={cardHead}><div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>Disponibilidad</div></div>
-          <div className="flex gap-2" style={{ padding: 16 }}>
-            {AVAIL.map((st) => {
-              const on = (edit ? form.availability : profile.availability) === st;
-              return (
-                <button key={st} onClick={() => (edit ? set("availability", st) : setProfile({ ...profile, availability: st }))} className="flex items-center gap-2 cursor-pointer"
-                  style={{ height: 42, padding: "0 18px", borderRadius: 9999, fontFamily: "var(--font-ui)", fontSize: 13.5, fontWeight: 600,
-                    background: on ? "var(--color-primary-subtle)" : "var(--color-surface)", color: on ? "var(--color-primary-ink)" : "var(--color-text-secondary)",
-                    border: on ? "1.5px solid var(--color-primary)" : "1px solid var(--color-border)" }}>
-                  <span className="rounded-full" style={{ width: 9, height: 9, background: AVAIL_COLORS[st] }} /> {st}
-                </button>
-              );
-            })}
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>{fullName}</div>
+            <div style={{ fontSize: 13.5, color: "var(--color-text-secondary)" }}>{me.role.name} · {me.email}</div>
           </div>
         </div>
 
-        {/* Stats (view only) */}
-        {!edit && (
-          <div className="grid grid-cols-4 gap-3" style={{ marginBottom: 18 }}>
-            {STATS.map((st) => (
-              <div key={st.label} style={{ background: "var(--color-surface)", borderRadius: 14, border: "1px solid var(--color-border)", padding: "16px 18px" }}>
-                <Icon name={st.icon} size={18} style={{ color: "var(--color-primary-ink)" }} />
-                <div className="tnum" style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 500, letterSpacing: "-0.02em", color: "var(--color-text-primary)", marginTop: 8 }}>{st.value}</div>
-                <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 2 }}>{st.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        <AccountCard me={me} />
+        <AccountMetaCard me={me} />
+        <SecurityCard />
+      </div>
+    </div>
+  );
+}
 
-        {/* Details */}
-        <div style={card}>
-          <div style={cardHead}><div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>Datos personales</div></div>
-          {edit ? (
-            <div style={{ padding: 20 }}>
-              <div className="flex gap-3" style={{ marginBottom: 16 }}>
-                <div className="flex-1"><label style={fieldLabel}>Nombre completo</label><input className="fobo-input" value={form.name} onChange={(e) => set("name", e.target.value)} /></div>
-                <div className="flex-1"><label style={fieldLabel}>Rol</label><input className="fobo-input" value={form.role} onChange={(e) => set("role", e.target.value)} /></div>
-              </div>
-              <div className="flex gap-3" style={{ marginBottom: 16 }}>
-                <div className="flex-1"><label style={fieldLabel}>Email</label><input className="fobo-input" value={form.email} onChange={(e) => set("email", e.target.value)} /></div>
-                <div className="flex-1"><label style={fieldLabel}>Teléfono</label><input className="fobo-input" value={form.phone} onChange={(e) => set("phone", e.target.value)} /></div>
-              </div>
-              <div><label style={fieldLabel}>Biografía</label><textarea className="fobo-input" style={{ height: "auto", paddingTop: 12, resize: "vertical", minHeight: 80 }} value={form.bio} onChange={(e) => set("bio", e.target.value)} /></div>
-            </div>
-          ) : (
-            <div>
-              {([["Email", profile.email], ["Teléfono", profile.phone], ["Zona horaria", profile.timezone], ["Idioma", profile.language]] as [string, string][]).map(([k, v], i, a) => (
-                <div key={k} style={{ ...valRow, borderBottom: i < a.length - 1 ? valRow.borderBottom : "none" }}>
-                  <span style={{ width: 120, fontSize: 13, color: "var(--color-text-tertiary)" }}>{k}</span>
-                  <span style={{ fontSize: 13.5, color: "var(--color-text-primary)", fontWeight: 500 }}>{v}</span>
-                </div>
-              ))}
-              {profile.bio && <div style={{ padding: "14px 20px", fontSize: 13.5, color: "var(--color-text-secondary)", lineHeight: 1.6, borderTop: "1px solid var(--color-border)" }}>{profile.bio}</div>}
-            </div>
-          )}
+// ── Datos personales (editable → PATCH /auth/me) ─────────────────────────────
+function AccountCard({ me }: { me: AuthMe }) {
+  const toast = useToast();
+  const updateMe = useUpdateMe();
+  const [serverErr, setServerErr] = useState<string | null>(null);
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting, isDirty } } = useForm<AccountForm>({
+    resolver: zodResolver(accountSchema),
+    defaultValues: { firstName: me.firstName ?? "", lastName: me.lastName ?? "", email: me.email },
+  });
+
+  useEffect(() => {
+    reset({ firstName: me.firstName ?? "", lastName: me.lastName ?? "", email: me.email });
+  }, [me, reset]);
+
+  const submit = async (data: AccountForm) => {
+    setServerErr(null);
+    try {
+      await updateMe.mutateAsync(data);
+      toast("Perfil actualizado ✓");
+    } catch (e) {
+      setServerErr(serverErrorMessage(e));
+    }
+  };
+
+  return (
+    <div style={card}>
+      <div style={cardHead}><div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>Datos personales</div></div>
+      <form onSubmit={handleSubmit(submit)} style={{ padding: 20 }}>
+        {serverErr && (
+          <div className="mb-4 px-3 py-2 rounded-[10px] text-[13px]" style={{ background: "var(--color-error-bg)", color: "var(--color-error)" }}>{serverErr}</div>
+        )}
+        <div className="flex gap-3" style={{ marginBottom: 16 }}>
+          <div className="flex-1">
+            <label style={fieldLabel}>Nombre</label>
+            <input className="fobo-input" disabled={isSubmitting} {...register("firstName")} />
+            {errors.firstName && <div style={errText}>{errors.firstName.message}</div>}
+          </div>
+          <div className="flex-1">
+            <label style={fieldLabel}>Apellido</label>
+            <input className="fobo-input" disabled={isSubmitting} {...register("lastName")} />
+            {errors.lastName && <div style={errText}>{errors.lastName.message}</div>}
+          </div>
         </div>
+        <div>
+          <label style={fieldLabel}>Email</label>
+          <input className="fobo-input" type="email" disabled={isSubmitting} {...register("email")} />
+          {errors.email && <div style={errText}>{errors.email.message}</div>}
+          <div style={{ fontSize: 12, color: "var(--color-text-tertiary)", marginTop: 6 }}>Cambiar el email no actualiza tu sesión actual — vuelve a iniciar sesión después.</div>
+        </div>
+        <div className="flex justify-end" style={{ marginTop: 18 }}>
+          <button type="submit" disabled={isSubmitting || !isDirty} className="fobo-btn fobo-btn-primary fobo-btn-sm">
+            <Icon name="check2" size={16} /> {isSubmitting ? "Guardando…" : "Guardar cambios"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
 
-        {!edit && (
-          <div style={card}>
-            <div style={cardHead}><div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>Seguridad</div></div>
-            <div style={{ ...valRow, borderBottom: "none" }}>
-              <div className="flex-1"><div style={{ fontSize: 13.5, fontWeight: 500, color: "var(--color-text-primary)" }}>Contraseña</div><div style={{ fontSize: 12, color: "var(--color-text-tertiary)" }}>Cambiada hace 3 meses</div></div>
-              <button className="fobo-btn fobo-btn-secondary fobo-btn-sm" onClick={() => toast("Enlace de restablecimiento enviado")}>Cambiar</button>
-            </div>
+// ── Cuenta (solo lectura, real) ──────────────────────────────────────────────
+function AccountMetaCard({ me }: { me: AuthMe }) {
+  const rows: [string, string][] = [
+    ["Rol", me.role.name],
+    ["Estado", me.status?.name ?? "—"],
+    ["ID de usuario", `#${me.id}`],
+    ["Miembro desde", new Date(me.createdAt).toLocaleDateString("es-BO", { day: "2-digit", month: "long", year: "numeric" })],
+  ];
+  return (
+    <div style={card}>
+      <div style={cardHead}><div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>Cuenta</div></div>
+      <div>
+        {rows.map(([k, v], i, a) => (
+          <div key={k} style={{ ...valRow, borderBottom: i < a.length - 1 ? valRow.borderBottom : "none" }}>
+            <span style={{ width: 140, fontSize: 13, color: "var(--color-text-tertiary)" }}>{k}</span>
+            <span style={{ fontSize: 13.5, color: "var(--color-text-primary)", fontWeight: 500 }}>{v}</span>
           </div>
-        )}
+        ))}
+      </div>
+    </div>
+  );
+}
 
-        {edit && (
-          <div className="flex justify-end gap-2.5">
-            <button className="fobo-btn fobo-btn-secondary fobo-btn-sm" onClick={cancel}>Cancelar</button>
-            <button className="fobo-btn fobo-btn-primary fobo-btn-sm" onClick={save}><Icon name="check2" size={16} /> Guardar cambios</button>
-          </div>
+// ── Seguridad (cambio de contraseña real → PATCH /auth/me) ───────────────────
+function SecurityCard() {
+  const toast = useToast();
+  const updateMe = useUpdateMe();
+  const [serverErr, setServerErr] = useState<string | null>(null);
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<SecurityForm>({
+    resolver: zodResolver(securitySchema),
+    defaultValues: { oldPassword: "", password: "", confirm: "" },
+  });
+
+  const submit = async (data: SecurityForm) => {
+    setServerErr(null);
+    try {
+      await updateMe.mutateAsync({ oldPassword: data.oldPassword, password: data.password });
+      toast("Contraseña actualizada ✓");
+      reset();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 422 && e.details && typeof e.details === "object") {
+        const det = e.details as { errors?: Record<string, string> };
+        if (det.errors?.oldPassword) {
+          setServerErr("La contraseña actual no es correcta");
+          return;
+        }
+      }
+      setServerErr(serverErrorMessage(e));
+    }
+  };
+
+  return (
+    <div style={card}>
+      <div style={cardHead}><div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>Seguridad</div></div>
+      <form onSubmit={handleSubmit(submit)} style={{ padding: 20 }}>
+        {serverErr && (
+          <div className="mb-4 px-3 py-2 rounded-[10px] text-[13px]" style={{ background: "var(--color-error-bg)", color: "var(--color-error)" }}>{serverErr}</div>
         )}
+        <div style={{ marginBottom: 16 }}>
+          <label style={fieldLabel}>Contraseña actual</label>
+          <input className="fobo-input" type="password" autoComplete="current-password" disabled={isSubmitting} {...register("oldPassword")} />
+          {errors.oldPassword && <div style={errText}>{errors.oldPassword.message}</div>}
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label style={fieldLabel}>Nueva contraseña</label>
+            <input className="fobo-input" type="password" autoComplete="new-password" disabled={isSubmitting} {...register("password")} />
+            {errors.password && <div style={errText}>{errors.password.message}</div>}
+          </div>
+          <div className="flex-1">
+            <label style={fieldLabel}>Confirmar</label>
+            <input className="fobo-input" type="password" autoComplete="new-password" disabled={isSubmitting} {...register("confirm")} />
+            {errors.confirm && <div style={errText}>{errors.confirm.message}</div>}
+          </div>
+        </div>
+        <div className="flex justify-end" style={{ marginTop: 18 }}>
+          <button type="submit" disabled={isSubmitting} className="fobo-btn fobo-btn-secondary fobo-btn-sm">
+            {isSubmitting ? "Guardando…" : "Cambiar contraseña"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ── Loading / error ──────────────────────────────────────────────────────────
+function ProfileSkeleton() {
+  const block = (w: number | string, h: number): CSSProperties => ({ width: w, height: h, borderRadius: 6, background: "var(--color-border)" });
+  return (
+    <div style={{ flex: 1, minWidth: 0, overflowY: "auto", background: "var(--color-background)" }}>
+      <div style={{ height: 120, background: "var(--color-surface)" }} />
+      <div className="mx-auto" style={{ maxWidth: 720, padding: "0 24px 40px" }}>
+        <div className="flex items-end gap-[18px]" style={{ marginTop: -40, marginBottom: 24 }}>
+          <div className="rounded-full flex-none" style={{ width: 96, height: 96, background: "var(--color-border)", border: "4px solid var(--color-background)" }} />
+          <div className="flex-1" style={{ paddingBottom: 6 }}>
+            <div style={{ ...block(180, 20), marginBottom: 8 }} />
+            <div style={block(240, 14)} />
+          </div>
+        </div>
+        <div style={{ ...card, height: 190 }} />
+        <div style={{ ...card, height: 190 }} />
+      </div>
+    </div>
+  );
+}
+
+function ProfileError() {
+  return (
+    <div className="flex items-center justify-center" style={{ flex: 1, minHeight: 320, background: "var(--color-background)" }}>
+      <div className="text-center" style={{ padding: 40 }}>
+        <Icon name="alert" size={28} style={{ color: "var(--color-error)" }} />
+        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)", marginTop: 12 }}>No se pudo cargar tu perfil</div>
+        <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginTop: 4 }}>Revisa tu conexión e inténtalo de nuevo.</div>
       </div>
     </div>
   );
