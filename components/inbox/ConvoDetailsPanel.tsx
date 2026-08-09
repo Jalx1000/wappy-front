@@ -12,6 +12,23 @@ import type { UnifiedConversation } from "@/lib/api/socialInbox";
 
 const initialsOf = (s: string) => s.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase() || "?";
 
+/** Contact photo (Meta CDN when available) with initials fallback. Plain <img>
+ *  because Meta avatar URLs are arbitrary/expiring hosts next/image can't optimise. */
+function PeerPhoto({ label, avatarUrl, size }: { label: string; avatarUrl?: string | null; size: number }) {
+  const [broken, setBroken] = useState(false);
+  if (avatarUrl && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={avatarUrl} alt={label} onError={() => setBroken(true)} className="rounded-full object-cover flex-none" style={{ width: size, height: size }} />
+    );
+  }
+  return (
+    <span className="flex items-center justify-center rounded-full flex-none text-white font-bold" style={{ width: size, height: size, background: "#8891a7", fontSize: Math.round(size * 0.34) }}>
+      {initialsOf(label)}
+    </span>
+  );
+}
+
 function SectionCard({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--color-border)" }}>
@@ -84,7 +101,17 @@ export function ConvoDetailsPanel({ conversation, copilotMeta }: { conversation:
             <AssignSection convoId={conversation.id} />
             <SectionCard title="Datos de contacto" action={contactId ? <Link href={`/app/contacts?id=${contactId}`} className="text-[12px] font-semibold" style={{ color: "var(--color-primary-ink)" }}>Ver ficha</Link> : undefined}>
               <div className="flex flex-col gap-1.5 text-[13px]">
-                <div className="flex items-center gap-2" style={{ color: "var(--color-text-primary)" }}><Icon name="user" size={14} style={{ color: "var(--color-text-tertiary)" }} /> {conversation.contact?.displayName || conversation.peer}</div>
+                <div className="flex items-center gap-2.5" style={{ marginBottom: 2 }}>
+                  <PeerPhoto label={conversation.contact?.displayName || conversation.peer} avatarUrl={conversation.contact?.avatarUrl} size={40} />
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-semibold truncate" style={{ color: "var(--color-text-primary)" }}>{conversation.contact?.displayName || conversation.peer}</div>
+                    {conversation.profileUrl && (
+                      <a href={conversation.profileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[12px] font-semibold" style={{ color: "var(--color-primary-ink)" }}>
+                        <Icon name="link" size={12} /> Ver perfil
+                      </a>
+                    )}
+                  </div>
+                </div>
                 {conversation.peer && <div className="flex items-center gap-2" style={{ color: "var(--color-text-secondary)" }}><Icon name="phone" size={14} style={{ color: "var(--color-text-tertiary)" }} /> {conversation.peer}</div>}
                 <div className="flex items-center gap-2" style={{ color: "var(--color-text-secondary)" }}><Icon name="inbox" size={14} style={{ color: "var(--color-text-tertiary)" }} /> {channelLabel(conversation.channel)} · {conversation.accountHandle}</div>
               </div>

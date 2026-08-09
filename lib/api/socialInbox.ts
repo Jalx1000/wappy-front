@@ -13,7 +13,13 @@ export interface UnifiedConversation {
   connectionId: number;
   accountHandle: string;
   peer: string;
-  contact: { id: string; displayName: string | null } | null;
+  contact: {
+    id: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  } | null;
+  /** Public profile link of the peer (Instagram only); null for Messenger/WhatsApp. */
+  profileUrl: string | null;
   lastMessageAt: string | null;
 }
 

@@ -45,6 +45,41 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+/** Peer avatar: shows the profile photo (Meta CDN) when we have one, else the
+ *  initials chip. Meta avatar URLs are arbitrary/expiring hosts, so we use a
+ *  plain <img> (next/image can't optimise them) with a graceful fallback. */
+function PeerAvatar({
+  label,
+  avatarUrl,
+  size,
+}: {
+  label: string;
+  avatarUrl?: string | null;
+  size: number;
+}) {
+  const [broken, setBroken] = useState(false);
+  if (avatarUrl && !broken) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={avatarUrl}
+        alt={label}
+        onError={() => setBroken(true)}
+        className="rounded-full object-cover flex-none"
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  return (
+    <span
+      className="flex items-center justify-center text-white font-bold rounded-full flex-none"
+      style={{ width: size, height: size, background: "#8891a7", fontSize: Math.round(size * 0.32) }}
+    >
+      {initials(label)}
+    </span>
+  );
+}
+
 function relativeTime(iso: string | null): string {
   if (!iso) return "";
   const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -664,12 +699,7 @@ export function InboxView() {
                     }}
                   >
                     <div className="relative flex-shrink-0">
-                      <span
-                        className="flex items-center justify-center text-white font-bold text-[12px] rounded-full"
-                        style={{ width: 38, height: 38, background: "#8891a7" }}
-                      >
-                        {initials(label)}
-                      </span>
+                      <PeerAvatar label={label} avatarUrl={c.contact?.avatarUrl} size={38} />
                       <span className="absolute -bottom-[3px] -right-[3px]">
                         <ChannelDot
                           channel={metaKey(c.channel)}
