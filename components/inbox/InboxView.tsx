@@ -781,7 +781,7 @@ export function InboxView() {
                         className="truncate text-[12px] block"
                         style={{ color: "var(--color-text-secondary)" }}
                       >
-                        {c.accountHandle || channelLabel(c.channel)}
+                        {c.lastMessage || c.accountHandle || channelLabel(c.channel)}
                       </span>
                       {rowTags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-1">

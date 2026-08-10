@@ -20,6 +20,9 @@ export interface UnifiedConversation {
   } | null;
   /** Public profile link of the peer (Instagram only); null for Messenger/WhatsApp. */
   profileUrl: string | null;
+  /** Short preview of the newest message (text or a media label). */
+  lastMessage: string | null;
+  lastMessageType: string | null;
   lastMessageAt: string | null;
 }
 
