@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -8,7 +8,8 @@ import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
 import { useMe, useUpdateMe } from "@/lib/hooks";
 import { ApiError } from "@/lib/api/client";
-import type { AuthMe } from "@/lib/api/auth";
+import { filesApi } from "@/lib/api/files";
+import type { AuthMe, Availability } from "@/lib/api/auth";
 
 const card: CSSProperties = { background: "var(--color-surface)", borderRadius: 16, border: "1px solid var(--color-border)", marginBottom: 18 };
 const cardHead: CSSProperties = { padding: "16px 20px", borderBottom: "1px solid var(--color-border)", display: "flex", alignItems: "center" };
@@ -61,22 +62,135 @@ export function ProfileView() {
       <div style={banner} />
       <div className="mx-auto" style={{ maxWidth: 720, padding: "0 24px 40px" }}>
         <div className="flex items-end gap-[18px]" style={{ marginTop: -40, marginBottom: 24 }}>
-          <span
-            className="flex items-center justify-center rounded-full flex-none"
-            style={{ width: 96, height: 96, fontSize: 34, fontWeight: 700, background: "var(--color-primary)", color: "var(--color-on-primary)", border: "4px solid var(--color-background)" }}
-          >
-            {initialsOf(fullName)}
-          </span>
+          <AvatarUploader me={me} />
           <div className="flex-1" style={{ paddingBottom: 6 }}>
             <div style={{ fontFamily: "var(--font-display)", fontSize: 22, fontWeight: 600, letterSpacing: "-0.02em", color: "var(--color-text-primary)" }}>{fullName}</div>
             <div style={{ fontSize: 13.5, color: "var(--color-text-secondary)" }}>{me.role.name} · {me.email}</div>
           </div>
         </div>
 
+        <AvailabilityCard me={me} />
         <AccountCard me={me} />
         <AccountMetaCard me={me} />
         <SecurityCard />
       </div>
+    </div>
+  );
+}
+
+// ── Disponibilidad (presencia manual → PATCH /auth/me {availability}) ────────
+const AVAIL_OPTIONS: { value: Availability; label: string; color: string }[] = [
+  { value: "online", label: "Disponible", color: "var(--color-success)" },
+  { value: "away", label: "Ausente", color: "var(--color-warning)" },
+  { value: "busy", label: "Ocupado", color: "var(--color-error)" },
+  { value: "offline", label: "Desconectado", color: "var(--neutral-400)" },
+];
+
+function AvailabilityCard({ me }: { me: AuthMe }) {
+  const toast = useToast();
+  const updateMe = useUpdateMe();
+  const current: Availability = me.availability ?? "offline";
+
+  const set = async (value: Availability) => {
+    if (value === current || updateMe.isPending) return;
+    try {
+      await updateMe.mutateAsync({ availability: value });
+      toast("Disponibilidad actualizada ✓");
+    } catch (e) {
+      toast(serverErrorMessage(e), "error");
+    }
+  };
+
+  return (
+    <div style={card}>
+      <div style={cardHead}><div style={{ fontSize: 15, fontWeight: 600, color: "var(--color-text-primary)" }}>Disponibilidad</div></div>
+      <div className="flex gap-2 flex-wrap" style={{ padding: 16 }}>
+        {AVAIL_OPTIONS.map((o) => {
+          const on = current === o.value;
+          return (
+            <button
+              key={o.value}
+              onClick={() => set(o.value)}
+              disabled={updateMe.isPending}
+              className="flex items-center gap-2 cursor-pointer"
+              style={{
+                height: 42,
+                padding: "0 18px",
+                borderRadius: 9999,
+                fontSize: 13.5,
+                fontWeight: 600,
+                background: on ? "var(--color-primary-subtle)" : "var(--color-surface)",
+                color: on ? "var(--color-primary-ink)" : "var(--color-text-secondary)",
+                border: on ? "1.5px solid var(--color-primary)" : "1px solid var(--color-border)",
+              }}
+            >
+              <span className="rounded-full flex-none" style={{ width: 9, height: 9, background: o.color }} /> {o.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Avatar (subida real → /files/upload + PATCH /auth/me {photo}) ────────────
+function AvatarUploader({ me }: { me: AuthMe }) {
+  const toast = useToast();
+  const updateMe = useUpdateMe();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [broken, setBroken] = useState(false);
+  const fullName = [me.firstName, me.lastName].filter(Boolean).join(" ") || me.email;
+
+  const onPick = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    try {
+      const uploaded = await filesApi.upload(file);
+      await updateMe.mutateAsync({ photo: { id: uploaded.id } });
+      setBroken(false);
+      toast("Foto de perfil actualizada ✓");
+    } catch (err) {
+      toast(err instanceof Error ? err.message : "No se pudo subir la foto", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const showImg = !!me.photo?.path && !broken;
+  return (
+    <div className="relative flex-none" style={{ width: 96, height: 96 }}>
+      {showImg ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={me.photo!.path}
+          alt={fullName}
+          onError={() => setBroken(true)}
+          className="rounded-full object-cover"
+          style={{ width: 96, height: 96, border: "4px solid var(--color-background)" }}
+        />
+      ) : (
+        <span
+          className="flex items-center justify-center rounded-full"
+          style={{ width: 96, height: 96, fontSize: 34, fontWeight: 700, background: "var(--color-primary)", color: "var(--color-on-primary)", border: "4px solid var(--color-background)" }}
+        >
+          {initialsOf(fullName)}
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={uploading}
+        aria-label="Cambiar foto de perfil"
+        title="Cambiar foto"
+        className="absolute flex items-center justify-center rounded-full cursor-pointer"
+        style={{ right: -2, bottom: 2, width: 30, height: 30, background: "var(--color-surface)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)", boxShadow: "var(--shadow-2)" }}
+      >
+        <Icon name={uploading ? "refresh" : "edit"} size={14} />
+      </button>
+      <input ref={inputRef} type="file" accept="image/*" onChange={onPick} style={{ display: "none" }} />
     </div>
   );
 }
