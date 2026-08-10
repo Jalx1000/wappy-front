@@ -257,6 +257,7 @@ function renderBody(m: UnifiedMessage): React.ReactNode {
       ) : (
         row(<Icon name="image" size={14} />, "Sticker")
       );
+    case "file":
     case "document": {
       const filename = (p.filename as string) || "Documento";
       return hasMedia
