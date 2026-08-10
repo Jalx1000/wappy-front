@@ -92,12 +92,58 @@ function relativeTime(iso: string | null): string {
   return new Date(iso).toLocaleDateString();
 }
 
-// Fetches the media asset via the backend proxy and renders it inline.
+// Full-screen image preview. Click anywhere (or Esc) to close.
+function Lightbox({ url, alt, onClose }: { url: string; alt: string; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <button
+        aria-label="Cerrar"
+        onClick={onClose}
+        style={{ position: "absolute", top: 16, right: 16, width: 40, height: 40, borderRadius: 9999, border: "none", background: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <Icon name="x" size={20} />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={url}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: "100%", maxHeight: "90vh", borderRadius: 8, objectFit: "contain" }}
+      />
+    </div>
+  );
+}
+
+// Renders a message's media inline. WhatsApp media needs the authenticated
+// proxy (Graph URL requires the business token) → fetched as a blob. Messenger/
+// Instagram attachments carry a public CDN url on the message itself, so we use
+// it directly (no proxy). Images open a full-screen preview on click.
 function WaMedia({ message }: { message: UnifiedMessage }) {
-  const [url, setUrl] = useState<string | null>(null);
+  // WhatsApp media is fetched through the authenticated proxy (needs the token);
+  // Messenger/IG carry a public CDN url on the message → used directly.
+  const isProxy = !!message.mediaId;
+  const [proxyUrl, setProxyUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [zoom, setZoom] = useState(false);
 
   useEffect(() => {
+    if (!isProxy) return; // direct-url path is derived below, no fetch
     let objectUrl: string | null = null;
     let cancelled = false;
     socialInboxApi
@@ -107,7 +153,7 @@ function WaMedia({ message }: { message: UnifiedMessage }) {
           URL.revokeObjectURL(u);
         } else {
           objectUrl = u;
-          setUrl(u);
+          setProxyUrl(u);
         }
       })
       .catch(() => {
@@ -117,9 +163,11 @@ function WaMedia({ message }: { message: UnifiedMessage }) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [message.id]);
+  }, [isProxy, message.id]);
 
-  if (failed)
+  const url = isProxy ? proxyUrl : (message.mediaUrl ?? null);
+
+  if (failed || (!isProxy && !url))
     return (
       <span className="flex items-center gap-1.5" style={{ opacity: 0.8 }}>
         <Icon name="image" size={14} /> No se pudo cargar el archivo
@@ -135,13 +183,17 @@ function WaMedia({ message }: { message: UnifiedMessage }) {
   const t = message.type;
   if (t === "image" || t === "sticker")
     return (
-      // Object URL from a blob — next/image can't optimize these.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={url}
-        alt={message.content ?? ""}
-        style={{ maxWidth: 220, borderRadius: 10, display: "block" }}
-      />
+      <>
+        {/* Object URL from a blob — next/image can't optimize these. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={message.content ?? ""}
+          onClick={() => setZoom(true)}
+          style={{ maxWidth: 220, borderRadius: 10, display: "block", cursor: "zoom-in" }}
+        />
+        {zoom && <Lightbox url={url} alt={message.content ?? ""} onClose={() => setZoom(false)} />}
+      </>
     );
   if (t === "video")
     return (
@@ -182,10 +234,11 @@ function renderBody(m: UnifiedMessage): React.ReactNode {
     </div>
   );
 
+  const hasMedia = !!m.mediaId || !!m.mediaUrl;
   switch (m.type) {
     case "image":
     case "video":
-      return m.mediaId
+      return hasMedia
         ? withCaption(<WaMedia message={m} />)
         : row(
             <Icon name="image" size={14} />,
@@ -193,20 +246,20 @@ function renderBody(m: UnifiedMessage): React.ReactNode {
           );
     case "audio":
     case "voice":
-      return m.mediaId ? (
+      return hasMedia ? (
         <WaMedia message={m} />
       ) : (
         row(<Icon name="inbox" size={14} />, "Audio")
       );
     case "sticker":
-      return m.mediaId ? (
+      return hasMedia ? (
         <WaMedia message={m} />
       ) : (
         row(<Icon name="image" size={14} />, "Sticker")
       );
     case "document": {
       const filename = (p.filename as string) || "Documento";
-      return m.mediaId
+      return hasMedia
         ? withCaption(<WaMedia message={m} />)
         : row(
             <Icon name="fileText" size={14} />,
