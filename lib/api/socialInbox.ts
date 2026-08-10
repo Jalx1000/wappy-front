@@ -23,6 +23,8 @@ export interface UnifiedConversation {
   /** Short preview of the newest message (text or a media label). */
   lastMessage: string | null;
   lastMessageType: string | null;
+  /** Who the conversation is assigned to (agent and/or team), or null. */
+  assignment: { userId: number | null; teamId: string | null } | null;
   lastMessageAt: string | null;
 }
 
@@ -64,6 +66,17 @@ export const socialInboxApi = {
     api.post<UnifiedMessage>(
       `/social-inbox/conversations/${conversationId}/messages`,
       { channel, text },
+    ),
+
+  // Assigns the conversation to an agent and/or team (null to clear).
+  assign: (
+    conversationId: string,
+    channel: string,
+    payload: { assigneeUserId?: number | null; teamId?: string | null },
+  ) =>
+    api.patch<{ userId: number | null; teamId: string | null }>(
+      `/social-inbox/conversations/${conversationId}/assignment`,
+      { channel, ...payload },
     ),
 
   // Returns an object URL for a message's media asset (proxied via the backend).

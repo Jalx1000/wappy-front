@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Icon } from "@/components/ui/Icon";
 import { channelLabel } from "@/lib/channels";
 import { ContactTagsCard, ContactAttributesCard, ContactSharedCard } from "@/components/contacts/ContactExtras";
-import { useConvoStateStore, convoStateOf } from "@/store/convoState";
-import { AGENTS } from "@/components/team-inbox/data";
+import { useMe, useBrandMembers } from "@/lib/hooks";
+import { useUIStore } from "@/store/ui";
+import { teamsApi } from "@/lib/api/teams";
+import { socialInboxApi } from "@/lib/api/socialInbox";
+import { useToast } from "@/components/ui/Toast";
 import { summarize, type ConvMeta } from "./copilotEngine";
 import type { UnifiedConversation } from "@/lib/api/socialInbox";
 
@@ -41,41 +45,85 @@ function SectionCard({ title, action, children }: { title: string; action?: Reac
   );
 }
 
-function AssignSection({ convoId }: { convoId: string }) {
-  const byId = useConvoStateStore((s) => s.byId);
-  const setAssignee = useConvoStateStore((s) => s.setAssignee);
-  const st = convoStateOf(byId, convoId);
+const menuItemStyle = { padding: "7px 9px", background: "transparent", border: "none", color: "var(--color-text-primary)" } as const;
+const menuLabelStyle = { padding: "6px 9px 3px", fontSize: 11, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--color-text-tertiary)" } as const;
+
+function AssignSection({ conversation }: { conversation: UnifiedConversation }) {
+  const { activeBrand } = useUIStore();
+  const { data: me } = useMe();
+  const { data: members = [] } = useBrandMembers(activeBrand?.id);
+  const { data: teams = [] } = useQuery({
+    queryKey: ["teams", activeBrand?.id],
+    queryFn: () => teamsApi.list(activeBrand!.id),
+    enabled: !!activeBrand,
+  });
+  const qc = useQueryClient();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const a = conversation.assignment;
+  const memberName = (userId: number) => (me?.id === userId ? "Tú" : `Usuario #${userId}`);
+  const currentTeam = a?.teamId ? teams.find((t) => t.id === a.teamId) : undefined;
+  const currentLabel =
+    a?.userId != null ? memberName(a.userId) : a?.teamId ? currentTeam?.name ?? "Equipo" : null;
+
+  const doAssign = async (payload: { assigneeUserId?: number | null; teamId?: string | null }) => {
+    setBusy(true);
+    try {
+      await socialInboxApi.assign(conversation.id, conversation.channel, payload);
+      await qc.invalidateQueries({ queryKey: ["social-inbox", "conversations"] });
+      setOpen(false);
+    } catch {
+      toast("No se pudo asignar", "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const item = (label: React.ReactNode, onClick: () => void, key: string) => (
+    <button
+      key={key}
+      onClick={onClick}
+      disabled={busy}
+      className="flex items-center gap-2 w-full text-left rounded-[8px] cursor-pointer"
+      style={menuItemStyle}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--neutral-100)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      <span className="text-[13px]">{label}</span>
+    </button>
+  );
 
   return (
     <SectionCard title="Asignación">
       <div className="relative">
-        <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2.5 w-full text-left cursor-pointer rounded-[10px]" style={{ padding: "8px 10px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
-          {st.assignee ? (
-            <span className="flex items-center justify-center rounded-full flex-none" style={{ width: 26, height: 26, fontSize: 10, fontWeight: 700, background: "var(--color-primary-subtle)", color: "var(--color-primary-ink)" }}>{initialsOf(st.assignee)}</span>
-          ) : (
-            <span className="flex items-center justify-center rounded-full flex-none" style={{ width: 26, height: 26, background: "var(--neutral-200)", color: "var(--color-text-secondary)" }}><Icon name="user" size={14} /></span>
-          )}
-          <span className="flex-1 text-[13px] font-medium" style={{ color: st.assignee ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}>{st.assignee || "Sin asignar"}</span>
+        <button onClick={() => setOpen((v) => !v)} disabled={busy} className="flex items-center gap-2.5 w-full text-left cursor-pointer rounded-[10px]" style={{ padding: "8px 10px", border: "1px solid var(--color-border)", background: "var(--color-surface)" }}>
+          <span className="flex items-center justify-center rounded-full flex-none" style={{ width: 26, height: 26, fontSize: 10, fontWeight: 700, background: currentLabel ? "var(--color-primary-subtle)" : "var(--neutral-200)", color: currentLabel ? "var(--color-primary-ink)" : "var(--color-text-secondary)" }}>
+            {a?.teamId ? <Icon name="users" size={13} /> : currentLabel ? initialsOf(currentLabel) : <Icon name="user" size={14} />}
+          </span>
+          <span className="flex-1 text-[13px] font-medium" style={{ color: currentLabel ? "var(--color-text-primary)" : "var(--color-text-tertiary)" }}>{currentLabel || "Sin asignar"}</span>
           <Icon name="chevronDown" size={15} style={{ color: "var(--color-text-tertiary)" }} />
         </button>
         {open && (
           <>
             <div className="fixed inset-0 z-[40]" onClick={() => setOpen(false)} />
-            <div className="absolute z-[41]" style={{ top: "calc(100% + 6px)", left: 0, right: 0, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, boxShadow: "var(--shadow-3)", padding: 6 }}>
-              {[{ id: "none", name: "Sin asignar" }, ...AGENTS].map((a) => (
-                <button key={a.id} onClick={() => { setAssignee(convoId, a.name === "Sin asignar" ? null : a.name); setOpen(false); }}
-                  className="flex items-center gap-2 w-full text-left rounded-[8px] cursor-pointer" style={{ padding: "7px 9px", background: "transparent", border: "none", color: "var(--color-text-primary)" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "var(--neutral-100)")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                  <span className="text-[13px]">{a.name}</span>
-                </button>
-              ))}
+            <div className="absolute z-[41] max-h-[280px] overflow-y-auto" style={{ top: "calc(100% + 6px)", left: 0, right: 0, background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 12, boxShadow: "var(--shadow-3)", padding: 6 }}>
+              {item("Sin asignar", () => doAssign({ assigneeUserId: null, teamId: null }), "none")}
+              <div style={menuLabelStyle}>Agentes</div>
+              {members.length === 0 && <div className="text-[12px]" style={{ padding: "4px 9px", color: "var(--color-text-tertiary)" }}>Sin miembros</div>}
+              {members.map((m) => item(memberName(m.userId), () => doAssign({ assigneeUserId: m.userId, teamId: null }), `u${m.userId}`))}
+              {teams.length > 0 && <div style={menuLabelStyle}>Equipos</div>}
+              {teams.map((t) =>
+                item(
+                  <span className="flex items-center gap-1.5"><Icon name="users" size={13} /> {t.name}</span>,
+                  () => doAssign({ assigneeUserId: null, teamId: t.id }),
+                  `t${t.id}`,
+                ),
+              )}
             </div>
           </>
         )}
-      </div>
-      <div className="flex items-center gap-2" style={{ marginTop: 8, fontSize: 12.5, color: "var(--color-text-tertiary)" }}>
-        <Icon name="users" size={13} /> Bandeja de equipo: <span style={{ color: "var(--color-text-secondary)" }}>Sin asignar</span>
       </div>
     </SectionCard>
   );
@@ -98,7 +146,7 @@ export function ConvoDetailsPanel({ conversation, copilotMeta }: { conversation:
       <div className="flex-1 overflow-y-auto" style={{ borderTop: "1px solid var(--color-border)" }}>
         {tab === "details" ? (
           <>
-            <AssignSection convoId={conversation.id} />
+            <AssignSection conversation={conversation} />
             <SectionCard title="Datos de contacto" action={contactId ? <Link href={`/app/contacts?id=${contactId}`} className="text-[12px] font-semibold" style={{ color: "var(--color-primary-ink)" }}>Ver ficha</Link> : undefined}>
               <div className="flex flex-col gap-1.5 text-[13px]">
                 <div className="flex items-center gap-2.5" style={{ marginBottom: 2 }}>

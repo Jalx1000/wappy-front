@@ -8,13 +8,16 @@ export function matchesView(
   view: string,
   byId: Record<string, ConvoState>,
   contactTagsById: Record<string, string[]>,
+  meId?: number,
 ): boolean {
   const st = convoStateOf(byId, c.id);
+  const a = c.assignment;
+  const assigned = !!a && (a.userId != null || a.teamId != null);
   switch (true) {
     case view === "all": return true;
     case view === "open": return st.status === "open";
-    case view === "unassigned": return st.status !== "resolved" && !st.assignee;
-    case view === "mine": return st.assignee === ME;
+    case view === "unassigned": return st.status !== "resolved" && !assigned;
+    case view === "mine": return meId != null && a?.userId === meId;
     case view === "snoozed": return st.status === "snoozed";
     case view === "resolved": return st.status === "resolved";
     case view.startsWith("channel:"): return c.channel === view.slice(8);

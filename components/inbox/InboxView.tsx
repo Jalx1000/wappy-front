@@ -459,7 +459,7 @@ export function InboxView() {
 
   // View filtering for the conversation list (status/assignee/channel/tag).
   const convoTagIds = (c: UnifiedConversation) => (c.contact ? contactTagsByContact[c.contact.id] || [] : []);
-  const visibleConversations = conversations.filter((c) => matchesView(c, view, convoStateById, contactTagsByContact));
+  const visibleConversations = conversations.filter((c) => matchesView(c, view, convoStateById, contactTagsByContact, me?.id));
 
   // Global inbox shortcuts (ignored while typing): E resolver · S posponer · J/K navegar.
   useEffect(() => {
