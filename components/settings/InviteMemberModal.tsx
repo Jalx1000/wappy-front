@@ -6,17 +6,20 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Icon } from "@/components/ui/Icon";
-import { useAddMember } from "@/lib/hooks";
+import { invitationsApi } from "@/lib/api/invitations";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/api/client";
 
-const schema = z.object({
-  userId: z
-    .string()
-    .regex(/^\d+$/, "Debe ser un ID numérico")
-    .refine((s) => parseInt(s, 10) > 0, "ID inválido"),
-  role: z.enum(["admin", "member", "client"]),
-});
+const schema = z
+  .object({
+    email: z.string().email("Email inválido").or(z.literal("")),
+    phone: z.string().or(z.literal("")),
+    role: z.enum(["admin", "member", "client"]),
+  })
+  .refine((v) => v.email.trim() !== "" || v.phone.trim() !== "", {
+    message: "Indica un email o un teléfono",
+    path: ["email"],
+  });
 
 type FormData = z.infer<typeof schema>;
 
@@ -35,7 +38,6 @@ interface Props {
 
 export function InviteMemberModal({ brandId, brandName, onClose }: Props) {
   const toast = useToast();
-  const add = useAddMember(brandId);
   const [serverErr, setServerErr] = useState<string | null>(null);
 
   const {
@@ -44,29 +46,23 @@ export function InviteMemberModal({ brandId, brandName, onClose }: Props) {
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { userId: "", role: "member" },
+    defaultValues: { email: "", phone: "", role: "member" },
   });
 
   const submit = async (data: FormData) => {
     setServerErr(null);
     try {
-      await add.mutateAsync({
-        userId: Number(data.userId),
+      await invitationsApi.create({
+        brandId: Number(brandId),
+        email: data.email.trim() || undefined,
+        phone: data.phone.trim() || undefined,
         role: data.role,
       });
-      toast(`Usuario #${data.userId} agregado a ${brandName}`);
+      toast(`Invitación enviada${data.email ? ` a ${data.email.trim()}` : ""}`);
       onClose();
     } catch (e) {
       if (e instanceof ApiError) {
-        if (e.status === 404) {
-          setServerErr(`Usuario #${data.userId} no existe`);
-          return;
-        }
-        if (e.status === 409) {
-          setServerErr(`Usuario #${data.userId} ya es miembro`);
-          return;
-        }
-        setServerErr(e.message || "No se pudo agregar el miembro");
+        setServerErr(e.message || "No se pudo enviar la invitación");
         return;
       }
       setServerErr("Error inesperado");
@@ -141,9 +137,8 @@ export function InviteMemberModal({ brandId, brandName, onClose }: Props) {
               border: "1px solid var(--color-border)",
             }}
           >
-            <Icon name="info" size={13} /> El backend no expone búsqueda de
-            usuarios por email a Agency Admin. Por ahora invita pegando el ID
-            numérico del usuario.
+            <Icon name="info" size={13} /> Le enviaremos un email con un enlace
+            para unirse a <strong>{brandName}</strong>. Indica email o teléfono.
           </div>
 
           {serverErr && (
@@ -163,26 +158,42 @@ export function InviteMemberModal({ brandId, brandName, onClose }: Props) {
               className="block text-[12.5px] font-semibold mb-[6px]"
               style={{ color: "var(--color-text-primary)" }}
             >
-              User ID
+              Email
             </label>
             <input
-              {...register("userId")}
-              type="text"
-              inputMode="numeric"
-              placeholder="Ej: 4"
+              {...register("email")}
+              type="email"
+              placeholder="persona@empresa.com"
               autoFocus
               disabled={isSubmitting}
               className="w-full h-[38px] px-3 rounded-[10px] border outline-none text-[14px]"
               style={inputStyle}
             />
-            {errors.userId && (
+            {errors.email && (
               <div
                 className="text-[11.5px] mt-[5px]"
                 style={{ color: "var(--color-error)" }}
               >
-                {errors.userId.message}
+                {errors.email.message}
               </div>
             )}
+          </div>
+
+          <div className="mb-3">
+            <label
+              className="block text-[12.5px] font-semibold mb-[6px]"
+              style={{ color: "var(--color-text-primary)" }}
+            >
+              Teléfono <span style={{ color: "var(--color-text-tertiary)", fontWeight: 400 }}>(opcional)</span>
+            </label>
+            <input
+              {...register("phone")}
+              type="tel"
+              placeholder="+591 70000000"
+              disabled={isSubmitting}
+              className="w-full h-[38px] px-3 rounded-[10px] border outline-none text-[14px]"
+              style={inputStyle}
+            />
           </div>
 
           <div className="mb-5">
@@ -218,7 +229,7 @@ export function InviteMemberModal({ brandId, brandName, onClose }: Props) {
               disabled={isSubmitting}
               className="fobo-btn fobo-btn-primary fobo-btn-sm flex-1"
             >
-              {isSubmitting ? "Agregando…" : "Agregar miembro"}
+              {isSubmitting ? "Enviando…" : "Enviar invitación"}
             </button>
           </div>
         </form>

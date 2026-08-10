@@ -17,6 +17,7 @@ import {
 import { useUIStore } from "@/store/ui";
 import { ApiError } from "@/lib/api/client";
 import { InviteMemberModal } from "./InviteMemberModal";
+import { TeamsManager } from "./TeamsManager";
 import { DeleteAccountModal } from "./DeleteAccountModal";
 import type { BrandMember, MemberRole } from "@/lib/api/members";
 import { WhatsAppConnectModal } from "./WhatsAppConnectModal";
@@ -567,6 +568,8 @@ function TeamSection() {
           })
         )}
       </div>
+
+      <TeamsManager brandId={activeBrand.id} members={members} />
 
       <AnimatePresence>
         {inviteOpen && (
