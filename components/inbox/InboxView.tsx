@@ -484,11 +484,23 @@ export function InboxView() {
   // Auto-scroll the thread to the newest message on open / new message. Also fires
   // when an internal note or a product card is appended (they render after messages).
   const threadRef = useRef<HTMLDivElement>(null);
+  // Track whether the user is reading the latest messages. If they've scrolled
+  // up into history, incoming messages (incl. realtime) must NOT yank them down.
+  const nearBottomRef = useRef(true);
+  const prevActiveIdRef = useRef<string | undefined>(activeId);
   const activeNotesCount = active ? convoStateById[active.id]?.notes.length ?? 0 : 0;
   const activeCardsCount = active ? threadCardsByConvo[active.id]?.length ?? 0 : 0;
   useEffect(() => {
     const el = threadRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const convoChanged = prevActiveIdRef.current !== activeId;
+    prevActiveIdRef.current = activeId;
+    // Always jump to bottom when opening a thread; on new content only follow
+    // if the user is already at the latest.
+    if (convoChanged || nearBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+      nearBottomRef.current = true;
+    }
   }, [messages, activeId, activeNotesCount, activeCardsCount]);
 
   // Attachments (image/audio/video/document) — upload + send.
@@ -912,6 +924,11 @@ export function InboxView() {
 
               <div
                 ref={threadRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  nearBottomRef.current =
+                    el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+                }}
                 className="flex-1 overflow-y-auto flex flex-col gap-2"
                 style={{
                   padding: "18px",
@@ -961,6 +978,7 @@ export function InboxView() {
                               : "1px solid var(--color-border)",
                             fontStyle: m.revoked ? "italic" : "normal",
                             opacity: m.revoked ? 0.7 : 1,
+                            overflowWrap: "anywhere",
                           }}
                         >
                           {renderBody(m)}
@@ -1430,12 +1448,23 @@ export function InboxView() {
                           ? "Enviando archivo…"
                           : "Escribe un mensaje…"
                   }
+                  aria-label={composerMode === "note" ? "Nota interna" : "Mensaje"}
                   className="flex-1 text-[14px] rounded-[10px] px-3 py-2 outline-none"
                   style={{
                     border: "1px solid var(--color-border)",
                     background: "var(--color-surface)",
                     color: "var(--color-text-primary)",
                     fontFamily: "var(--ff-ui)",
+                    transition: "border-color 150ms, box-shadow 150ms",
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "var(--color-primary-ink)";
+                    e.currentTarget.style.boxShadow =
+                      "0 0 0 3px var(--color-primary-light)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "var(--color-border)";
+                    e.currentTarget.style.boxShadow = "none";
                   }}
                 />
                 {draft.trim() ? (
