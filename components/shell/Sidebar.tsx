@@ -72,6 +72,7 @@ const NAV: NavSection[] = [
   {
     section: "Automatización",
     items: [
+      { id: "agents",       label: "Agentes IA",       icon: "spark", href: "/app/agents" },
       { id: "bot-builder",  label: "Bot Builder",      icon: "bot", href: "/app/bot-builder" },
       { id: "automations",  label: "Automatizaciones", icon: "zap", href: "/app/automations" },
       { id: "broadcasts",   label: "Mensajes proactivos", icon: "megaphone", href: "/app/broadcasts" },
