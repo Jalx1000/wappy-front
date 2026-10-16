@@ -30,7 +30,6 @@ export function CompareModal({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <div
       className={`mkt-modal-scrim${open ? " show" : ""}`}
-      data-lenis-prevent
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

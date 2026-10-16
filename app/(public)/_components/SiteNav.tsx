@@ -2,41 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useLenis } from "lenis/react";
 import { useMarketing } from "./MarketingProvider";
 import { LangToggle } from "./LangToggle";
 import { ripple } from "./ripple";
 
-// Keeps section anchors clear of the fixed pill nav.
-const NAV_OFFSET = -90;
-
 export function SiteNav() {
   const { t, signInHref, openDemo } = useMarketing();
-  const lenis = useLenis();
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  // In-page anchor links: let Lenis handle the smooth scroll (with offset) when
-  // we're already on the home page; otherwise allow normal navigation to "/#…".
-  const goToAnchor = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
-    const i = href.indexOf("#");
-    if (i === -1) return;
-    if (window.location.pathname === "/") {
-      e.preventDefault();
-      setMenuOpen(false);
-      lenis?.scrollTo(href.slice(i), { offset: NAV_OFFSET });
-    }
-  };
-
-  // Honor a deep-linked hash on load (Lenis owns scrolling, so the native jump
-  // would ignore the fixed-nav offset).
-  useEffect(() => {
-    if (!lenis || !window.location.hash) return;
-    const id = requestAnimationFrame(() =>
-      lenis.scrollTo(window.location.hash, { offset: NAV_OFFSET }),
-    );
-    return () => cancelAnimationFrame(id);
-  }, [lenis]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
@@ -71,11 +44,7 @@ export function SiteNav() {
         </Link>
         <div className="nav-links">
           {t.nav.links.map((l) => (
-            <a
-              key={l.href + l.label}
-              href={`/${l.href}`}
-              onClick={(e) => goToAnchor(e, `/${l.href}`)}
-            >
+            <a key={l.href + l.label} href={`/${l.href}`}>
               {l.label}
             </a>
           ))}
@@ -121,7 +90,7 @@ export function SiteNav() {
               key={l.href + l.label}
               className="m-link"
               href={`/${l.href}`}
-              onClick={(e) => goToAnchor(e, `/${l.href}`)}
+              onClick={() => setMenuOpen(false)}
             >
               {l.label}
             </a>

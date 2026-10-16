@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, type ReactNode } from "react";
-import { useLenis } from "lenis/react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useMarketing } from "./MarketingProvider";
 import type { SiteContent } from "./content";
 import { MOCK } from "./mock";
@@ -23,26 +22,35 @@ export function Landing() {
   const m = MOCK[lang];
   const rootRef = useRef<HTMLDivElement>(null);
 
-  // Reveal `.reveal` elements as they enter the viewport. Driven by Lenis'
-  // scroll callback instead of an IntersectionObserver so a programmatic
-  // scrollTo — e.g. a deep-linked `/#pricing` — reliably reveals its target
-  // rather than flashing blank (IO can race the eased scrollTo). Under
-  // prefers-reduced-motion the CSS shows everything up-front, so this is a
-  // no-op there.
-  const revealInView = useCallback(() => {
+  // Scroll-reveal for elements tagged `.reveal`.
+  useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    const els = Array.from(root.querySelectorAll<HTMLElement>(".reveal"));
+
+    // Reveal anything already inside (or just below) the viewport on mount, so a
+    // deep-linked anchor (e.g. /#pricing) never lands on invisible content while
+    // the IntersectionObserver is still warming up.
     const vh = window.innerHeight;
-    root.querySelectorAll<HTMLElement>(".reveal:not(.in)").forEach((el) => {
-      if (el.getBoundingClientRect().top < vh * 0.9) el.classList.add("in");
+    els.forEach((el) => {
+      if (el.getBoundingClientRect().top < vh * 0.92) el.classList.add("in");
     });
+
+    const io = new IntersectionObserver(
+      (entries) =>
+        entries.forEach((en) => {
+          if (en.isIntersecting) {
+            en.target.classList.add("in");
+            io.unobserve(en.target);
+          }
+        }),
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
+    );
+    els.forEach((el) => {
+      if (!el.classList.contains("in")) io.observe(el);
+    });
+    return () => io.disconnect();
   }, []);
-
-  useLenis(revealInView);
-
-  useEffect(() => {
-    revealInView();
-  }, [revealInView]);
 
   // Metadata is server-rendered in Spanish; keep the document title in sync
   // with the selected language so EN visitors don't see a Spanish <title>.
