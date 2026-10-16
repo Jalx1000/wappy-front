@@ -75,6 +75,7 @@ export const SECTIONS = [
   { id: "account", label: "Mi cuenta", icon: "user" as const },
   { id: "security", label: "Seguridad", icon: "shield" as const },
   { id: "team", label: "Equipo", icon: "users" as const },
+  { id: "navigation", label: "Navegación", icon: "list" as const },
   { id: "notifs", label: "Notificaciones", icon: "bell" as const },
   { id: "session", label: "Sesión", icon: "logout" as const },
   { id: "channel", label: "Canales", icon: "channel" as const },

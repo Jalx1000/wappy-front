@@ -11,7 +11,7 @@ import { useAttributesStore } from "@/store/attributes";
 import { useMe } from "@/lib/hooks";
 import { socialInboxApi } from "@/lib/api/socialInbox";
 import { cn } from "@/lib/utils";
-import { navForWorkspace } from "@/components/shell/nav";
+import { sidebarSections } from "@/components/shell/nav";
 import { WorkspaceSwitcher } from "@/components/shell/WorkspaceSwitcher";
 
 interface SidebarProps {
@@ -20,8 +20,9 @@ interface SidebarProps {
 
 export function Sidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const { sidebarCollapsed, toggleSidebar, activeBrand, activeWorkspace } = useUIStore();
-  const sections = navForWorkspace(activeWorkspace);
+  const { sidebarCollapsed, toggleSidebar, activeBrand, activeWorkspace, workspacePrefs } =
+    useUIStore();
+  const sections = sidebarSections(activeWorkspace, workspacePrefs[activeWorkspace]);
 
   // Módulos personalizados (custom objects) creados en Atributos → nav dinámico.
   const modules = useAttributesStore((s) => s.modules);
@@ -93,8 +94,8 @@ export function Sidebar({ onLogout }: SidebarProps) {
       {/* Nav items */}
       <div className="flex-1 overflow-y-auto px-[12px] pb-4" style={{ scrollbarWidth: "none" }}>
         {sections.map((group) => (
-          <div key={group.section} className="mb-[14px]">
-            {!sidebarCollapsed && (
+          <div key={group.section || "all"} className="mb-[14px]">
+            {!sidebarCollapsed && group.section && (
               <div
                 className="text-[10.5px] font-bold uppercase px-[10px] pb-[6px] pt-1"
                 style={{ letterSpacing: "0.06em", color: "var(--color-text-tertiary)" }}

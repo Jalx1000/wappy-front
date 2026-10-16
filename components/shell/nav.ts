@@ -99,3 +99,52 @@ export function navForWorkspace(ws: WorkspaceId): NavSection[] {
     items: group.items.filter((it) => it.ws.includes(ws)),
   })).filter((group) => group.items.length > 0);
 }
+
+/** Per-workspace sidebar customization. Empty = use the default grouped view. */
+export type WorkspacePref = {
+  /** Item ids in display order. Empty means "default order". */
+  order: string[];
+  /** Item ids hidden from the sidebar. */
+  hidden: string[];
+};
+
+export const EMPTY_PREF: WorkspacePref = { order: [], hidden: [] };
+
+/** All items belonging to a workspace, flattened in default (section) order. */
+export function itemsForWorkspace(ws: WorkspaceId): NavItem[] {
+  return NAV.flatMap((group) => group.items.filter((it) => it.ws.includes(ws)));
+}
+
+/**
+ * Items for a workspace after applying a user's order + hidden preferences.
+ * Unknown/removed ids in `order` are ignored; items not yet in `order` (e.g.
+ * added in a later release) keep their default position at the end.
+ */
+export function orderedItems(ws: WorkspaceId, pref: WorkspacePref): NavItem[] {
+  const all = itemsForWorkspace(ws);
+  const byId = new Map(all.map((it) => [it.id, it]));
+  const seen = new Set<string>();
+  const ordered: NavItem[] = [];
+  for (const id of pref.order) {
+    const it = byId.get(id);
+    if (it && !seen.has(id)) {
+      ordered.push(it);
+      seen.add(id);
+    }
+  }
+  for (const it of all) if (!seen.has(it.id)) ordered.push(it);
+  return ordered;
+}
+
+/**
+ * The sections the sidebar should render for a workspace. With no
+ * customization it's the default grouped view; once the user has reordered or
+ * hidden anything it's a single flat, ordered section (empty header).
+ */
+export function sidebarSections(ws: WorkspaceId, pref: WorkspacePref): NavSection[] {
+  const customized = pref.order.length > 0 || pref.hidden.length > 0;
+  if (!customized) return navForWorkspace(ws);
+  const hidden = new Set(pref.hidden);
+  const items = orderedItems(ws, pref).filter((it) => !hidden.has(it.id));
+  return items.length ? [{ section: "", items }] : [];
+}
