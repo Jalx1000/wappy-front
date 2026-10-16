@@ -379,7 +379,6 @@ body {
   transition: background-color 100ms, color 100ms;
 }
 .fobo-nav-item:hover { background: var(--neutral-100); }
-/* sidebar active: monochrome (rev2) */
 .fobo-nav-item.active {
   /* Monochrome active state: black fill in light, white fill in dark
      (--color-primary / --color-on-primary are inverted per theme). */
