@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { EMPTY_PREF, type WorkspaceId, type WorkspacePref } from "@/components/shell/nav";
 
 export type Brand = {
   id: string;
@@ -31,11 +32,17 @@ export type UploadedAsset = {
 
 interface UIState {
   sidebarCollapsed: boolean;
+  activeWorkspace: WorkspaceId;
+  workspacePrefs: Record<WorkspaceId, WorkspacePref>;
   activeBrand: Brand | null;
   commandPaletteOpen: boolean;
   uploadedAssets: UploadedAsset[];
   toggleSidebar: () => void;
   setSidebarCollapsed: (v: boolean) => void;
+  setActiveWorkspace: (w: WorkspaceId) => void;
+  setWorkspaceOrder: (w: WorkspaceId, order: string[]) => void;
+  toggleWorkspaceItem: (w: WorkspaceId, itemId: string) => void;
+  resetWorkspacePrefs: (w: WorkspaceId) => void;
   setActiveBrand: (b: Brand) => void;
   setCommandPaletteOpen: (v: boolean) => void;
   addAsset: (a: UploadedAsset) => void;
@@ -46,11 +53,33 @@ export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
       sidebarCollapsed: false,
+      activeWorkspace: "crm",
+      workspacePrefs: { crm: { ...EMPTY_PREF }, ads: { ...EMPTY_PREF } },
       activeBrand: null,
       commandPaletteOpen: false,
       uploadedAssets: [],
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+      setActiveWorkspace: (w) => set({ activeWorkspace: w }),
+      setWorkspaceOrder: (w, order) =>
+        set((s) => ({
+          workspacePrefs: {
+            ...s.workspacePrefs,
+            [w]: { ...s.workspacePrefs[w], order },
+          },
+        })),
+      toggleWorkspaceItem: (w, itemId) =>
+        set((s) => {
+          const pref = s.workspacePrefs[w];
+          const hidden = pref.hidden.includes(itemId)
+            ? pref.hidden.filter((id) => id !== itemId)
+            : [...pref.hidden, itemId];
+          return { workspacePrefs: { ...s.workspacePrefs, [w]: { ...pref, hidden } } };
+        }),
+      resetWorkspacePrefs: (w) =>
+        set((s) => ({
+          workspacePrefs: { ...s.workspacePrefs, [w]: { ...EMPTY_PREF } },
+        })),
       setActiveBrand: (b) => set({ activeBrand: b }),
       setCommandPaletteOpen: (v) => set({ commandPaletteOpen: v }),
       addAsset: (a) =>
@@ -68,6 +97,8 @@ export const useUIStore = create<UIState>()(
       skipHydration: true,
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
+        activeWorkspace: s.activeWorkspace,
+        workspacePrefs: s.workspacePrefs,
         activeBrand: s.activeBrand,
         uploadedAssets: s.uploadedAssets,
       }),

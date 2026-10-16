@@ -23,9 +23,12 @@
   -webkit-font-smoothing: antialiased;
 }
 
-/* smooth-scroll only when the marketing site is mounted */
+/* smooth-scroll + fixed-nav offset only when the marketing site is mounted */
 html:has(.mkt) {
   scroll-behavior: smooth;
+}
+.mkt section[id] {
+  scroll-margin-top: 90px;
 }
 
 .mkt * {
@@ -624,7 +627,7 @@ html:has(.mkt) {
   line-height: 0.9;
 }
 .mkt .hero h1 .t2 {
-  color: rgba(14, 19, 0, 0.38);
+  color: rgba(14, 19, 0, 0.52);
 }
 .mkt .hero p.sub {
   font-size: clamp(17px, 2.1vw, 20px);
@@ -1556,5 +1559,103 @@ html:has(.mkt) {
   }
   .mkt .life-float {
     display: none;
+  }
+}
+
+/* mobile nav menu (burger) — fills the <880px gap where .nav-links hides */
+.mkt .nav-burger {
+  display: none;
+}
+.mkt .nav-mobile {
+  display: none;
+}
+
+@media (max-width: 880px) {
+  /* inline sign-in / lang / demo move into the dropdown on mobile */
+  .mkt .nav-cta {
+    display: none;
+  }
+  .mkt .nav-burger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: transparent;
+    border-radius: 9999px;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mkt .nav-burger:hover {
+    background: rgba(14, 19, 0, 0.06);
+  }
+
+  .mkt .nav-mobile {
+    display: block;
+    overflow: hidden;
+    margin-top: 10px;
+    padding: 0 12px;
+    max-height: 0;
+    opacity: 0;
+    visibility: hidden; /* keeps links out of the tab order while closed */
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 24px;
+    box-shadow: 0 12px 34px rgba(20, 40, 80, 0.16);
+    transition: max-height 0.3s ease, opacity 0.22s ease, visibility 0.3s,
+      padding 0.3s ease;
+  }
+  .mkt .nav-mobile.open {
+    max-height: 520px;
+    opacity: 1;
+    visibility: visible;
+    padding: 12px;
+  }
+  .mkt .nav-mobile .m-link {
+    display: block;
+    padding: 12px 14px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--ink);
+    transition: background 0.15s;
+  }
+  .mkt .nav-mobile .m-link:hover {
+    background: rgba(14, 19, 0, 0.06);
+  }
+  .mkt .nav-mobile .m-sep {
+    height: 1px;
+    background: var(--line);
+    margin: 8px 6px;
+  }
+  .mkt .nav-mobile .m-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 2px 2px;
+  }
+  .mkt .nav-mobile .m-actions .lang-toggle {
+    align-self: flex-start;
+  }
+  .mkt .nav-mobile .m-signin {
+    text-align: center;
+    padding: 12px;
+    border-radius: 9999px;
+    background: rgba(14, 19, 0, 0.04);
+  }
+  .mkt .nav-mobile .m-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mkt .nav-mobile {
+    transition: none;
   }
 }

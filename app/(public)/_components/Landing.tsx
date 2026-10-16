@@ -26,6 +26,16 @@ export function Landing() {
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
+    const els = Array.from(root.querySelectorAll<HTMLElement>(".reveal"));
+
+    // Reveal anything already inside (or just below) the viewport on mount, so a
+    // deep-linked anchor (e.g. /#pricing) never lands on invisible content while
+    // the IntersectionObserver is still warming up.
+    const vh = window.innerHeight;
+    els.forEach((el) => {
+      if (el.getBoundingClientRect().top < vh * 0.92) el.classList.add("in");
+    });
+
     const io = new IntersectionObserver(
       (entries) =>
         entries.forEach((en) => {
@@ -34,11 +44,22 @@ export function Landing() {
             io.unobserve(en.target);
           }
         }),
-      { threshold: 0.12 },
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
     );
-    root.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+    els.forEach((el) => {
+      if (!el.classList.contains("in")) io.observe(el);
+    });
     return () => io.disconnect();
   }, []);
+
+  // Metadata is server-rendered in Spanish; keep the document title in sync
+  // with the selected language so EN visitors don't see a Spanish <title>.
+  useEffect(() => {
+    document.title =
+      lang === "en"
+        ? "Wappy — Talk to every customer, from one fast inbox"
+        : "Wappy — Habla con cada cliente, desde una bandeja veloz";
+  }, [lang]);
 
   const trial = (e: React.MouseEvent<HTMLElement>) => {
     ripple(e);
@@ -93,7 +114,7 @@ export function Landing() {
           </div>
         </div>
         <div className="wrap">
-          <div className="hero-stage">
+          <div className="hero-stage" aria-hidden="true">
             <div className="float" style={{ top: 0, left: "2%", width: 300, padding: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <span style={avatar("#E8EAFF", "#4852ED")}>AW</span>
@@ -202,7 +223,7 @@ export function Landing() {
                   ))}
                 </ul>
               </div>
-              <div className={`feat-art ${["tint-sky", "tint-lav", "tint-mint"][i]}`}>
+              <div className={`feat-art ${["tint-sky", "tint-lav", "tint-mint"][i]}`} aria-hidden="true">
                 <FeatureArt index={i} m={m} copilot={t.lifestyle.copilot} />
               </div>
             </div>
@@ -224,22 +245,22 @@ export function Landing() {
           </h2>
           <p style={{ fontSize: 17, color: "rgba(14,19,0,0.62)", maxWidth: 480, margin: "14px auto 0" }}>{t.app.sub}</p>
           <div className="hero-badges" style={{ marginTop: 24 }}>
-            <div className="store-badge">
+            <a className="store-badge" href="#app" aria-label="Download on the App Store">
               <Apple />
               <div>
                 <div className="s1">Download on the</div>
                 <div className="s2">App Store</div>
               </div>
-            </div>
-            <div className="store-badge">
+            </a>
+            <a className="store-badge" href="#app" aria-label="Get it on Google Play">
               <GooglePlay />
               <div>
                 <div className="s1">Get it on</div>
                 <div className="s2">Google Play</div>
               </div>
-            </div>
+            </a>
           </div>
-          <div className="app-phones">
+          <div className="app-phones" aria-hidden="true">
             <IosPhone m={m} app={t.app} />
             <AndroidPhone app={t.app} you={m.you} />
           </div>

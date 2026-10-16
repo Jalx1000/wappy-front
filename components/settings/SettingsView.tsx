@@ -18,6 +18,7 @@ import { useUIStore } from "@/store/ui";
 import { ApiError } from "@/lib/api/client";
 import { InviteMemberModal } from "./InviteMemberModal";
 import { TeamsManager } from "./TeamsManager";
+import { NavigationSection } from "./NavigationSection";
 import { DeleteAccountModal } from "./DeleteAccountModal";
 import type { BrandMember, MemberRole } from "@/lib/api/members";
 import { WhatsAppConnectModal } from "./WhatsAppConnectModal";
@@ -80,6 +81,7 @@ export function SettingsView() {
           {active === "account" && <AccountSection />}
           {active === "security" && <SecuritySection />}
           {active === "team" && <TeamSection />}
+          {active === "navigation" && <NavigationSection />}
           {active === "notifs" && <NotifsSection />}
           {active === "whatsapp" && <WhatsAppConnectModal onClose={() => setActive("whatsapp")} />}
           {active === "session" && <SessionSection />}

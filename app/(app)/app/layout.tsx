@@ -48,7 +48,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="flex h-screen overflow-hidden"
-      style={{ background: "var(--color-background)" }}
+      style={{ background: "var(--app-canvas)" }}
     >
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

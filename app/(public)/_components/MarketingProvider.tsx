@@ -51,8 +51,11 @@ export function MarketingProvider({ children }: { children: ReactNode }) {
   // mismatch, so we intentionally set state once on mount instead.
   useEffect(() => {
     const saved = window.localStorage.getItem(LANG_KEY);
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe restore
-    if (saved === "es" || saved === "en") setLangState(saved);
+    if (saved === "es" || saved === "en") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- hydration-safe restore
+      setLangState(saved);
+      document.documentElement.lang = saved;
+    }
   }, []);
 
   const setLang = useCallback((l: Lang) => {

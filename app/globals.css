@@ -28,6 +28,10 @@
 
   /* Surfaces */
   --color-background:       #F6F6F6;
+  /* App shell canvas — subtle "sky" wash behind the dashboard content so the
+     product matches the marketing/login sky. Applied only to the shell
+     container (not to --color-background, which many solid fills rely on). */
+  --app-canvas:             linear-gradient(180deg, #E6F3FD 0%, #EEF6FC 26%, #F6F6F6 60%);
   --color-surface:          #FFFFFF;
   --color-surface-raised:   #FFFFFF;
   --color-surface-overlay:  #FFFFFF;
@@ -132,6 +136,7 @@
   --color-warning-bg:       #3D2800;
 
   --color-background:       #121316;
+  --app-canvas:             #121316; /* keep the dark canvas flat; sky is light-only */
   --color-surface:          #1E1F24;
   --color-surface-raised:   #2A2B32;
   --color-surface-overlay:  #32343C;
@@ -375,8 +380,10 @@ body {
 }
 .fobo-nav-item:hover { background: var(--neutral-100); }
 .fobo-nav-item.active {
-  background: var(--color-primary-subtle);
-  color: var(--color-primary-ink);
+  /* Monochrome active state: black fill in light, white fill in dark
+     (--color-primary / --color-on-primary are inverted per theme). */
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   font-weight: 600;
 }
 
