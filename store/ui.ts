@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { WorkspaceId } from "@/components/shell/nav";
 
 export type Brand = {
   id: string;
@@ -31,11 +32,13 @@ export type UploadedAsset = {
 
 interface UIState {
   sidebarCollapsed: boolean;
+  activeWorkspace: WorkspaceId;
   activeBrand: Brand | null;
   commandPaletteOpen: boolean;
   uploadedAssets: UploadedAsset[];
   toggleSidebar: () => void;
   setSidebarCollapsed: (v: boolean) => void;
+  setActiveWorkspace: (w: WorkspaceId) => void;
   setActiveBrand: (b: Brand) => void;
   setCommandPaletteOpen: (v: boolean) => void;
   addAsset: (a: UploadedAsset) => void;
@@ -46,11 +49,13 @@ export const useUIStore = create<UIState>()(
   persist(
     (set) => ({
       sidebarCollapsed: false,
+      activeWorkspace: "crm",
       activeBrand: null,
       commandPaletteOpen: false,
       uploadedAssets: [],
       toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
       setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+      setActiveWorkspace: (w) => set({ activeWorkspace: w }),
       setActiveBrand: (b) => set({ activeBrand: b }),
       setCommandPaletteOpen: (v) => set({ commandPaletteOpen: v }),
       addAsset: (a) =>
@@ -68,6 +73,7 @@ export const useUIStore = create<UIState>()(
       skipHydration: true,
       partialize: (s) => ({
         sidebarCollapsed: s.sidebarCollapsed,
+        activeWorkspace: s.activeWorkspace,
         activeBrand: s.activeBrand,
         uploadedAssets: s.uploadedAssets,
       }),

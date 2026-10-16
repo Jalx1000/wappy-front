@@ -11,83 +11,8 @@ import { useAttributesStore } from "@/store/attributes";
 import { useMe } from "@/lib/hooks";
 import { socialInboxApi } from "@/lib/api/socialInbox";
 import { cn } from "@/lib/utils";
-import type { IconName } from "@/components/ui/Icon";
-
-type NavItem = {
-  id: string;
-  label: string;
-  icon: IconName;
-  href: string;
-  badge?: number;
-};
-
-type NavSection = {
-  section: string;
-  items: NavItem[];
-};
-
-const NAV: NavSection[] = [
-  {
-    section: "Operación",
-    items: [
-      { id: "dashboard",    label: "Dashboard",       icon: "grid",      href: "/app" },
-      { id: "brands",       label: "Marcas",           icon: "brands",    href: "/app/brands" },
-      { id: "connections",  label: "Conexiones",       icon: "plug",      href: "/app/connections" },
-    ],
-  },
-  {
-    section: "Analítica",
-    items: [
-      { id: "support-analytics", label: "Analytics soporte", icon: "spark", href: "/app/analytics/support" },
-      { id: "social",  label: "Social Analytics", icon: "chart",    href: "/app/analytics/social" },
-      { id: "web",     label: "Web (GA4)",         icon: "globe",    href: "/app/analytics/web" },
-      { id: "ads",     label: "Paid Media / Ads",  icon: "megaphone",href: "/app/analytics/ads" },
-      { id: "reports", label: "Reportes",          icon: "file",     href: "/app/reports" },
-      { id: "scheduled-reports", label: "Reportes programados", icon: "clock", href: "/app/reports/scheduled" },
-    ],
-  },
-  {
-    section: "Contenido",
-    items: [
-      { id: "calendar",    label: "Calendario",    icon: "calendar", href: "/app/calendar" },
-      { id: "assets",      label: "Artes (DAM)",   icon: "image",    href: "/app/assets" },
-      { id: "approvals",   label: "Aprobaciones",  icon: "check",    href: "/app/approvals", badge: 3 },
-      { id: "campaigns",   label: "Campañas",      icon: "target",   href: "/app/campaigns" },
-      { id: "influencers", label: "Influencers",   icon: "star",     href: "/app/influencers" },
-    ],
-  },
-  {
-    section: "Colaboración",
-    items: [
-      { id: "inbox",    label: "Bandeja Social", icon: "inbox",  href: "/app/inbox" },
-      { id: "team-inbox", label: "Bandeja de equipo", icon: "board", href: "/app/team-inbox" },
-      { id: "contacts", label: "Contactos",      icon: "users",  href: "/app/contacts" },
-      { id: "companies", label: "Empresas",      icon: "building", href: "/app/companies" },
-      { id: "tags",     label: "Etiquetas",      icon: "tag",    href: "/app/tags" },
-      { id: "help-center", label: "Centro de ayuda", icon: "book", href: "/app/help-center" },
-      { id: "requests", label: "Solicitudes",   icon: "ticket", href: "/app/requests" },
-      { id: "insights", label: "Insights AI",   icon: "spark",  href: "/app/insights" },
-    ],
-  },
-  {
-    section: "Automatización",
-    items: [
-      { id: "agents",       label: "Agentes IA",       icon: "spark", href: "/app/agents" },
-      { id: "bot-builder",  label: "Bot Builder",      icon: "bot", href: "/app/bot-builder" },
-      { id: "automations",  label: "Automatizaciones", icon: "zap", href: "/app/automations" },
-      { id: "broadcasts",   label: "Mensajes proactivos", icon: "megaphone", href: "/app/broadcasts" },
-      { id: "integrations", label: "Integraciones",    icon: "plug", href: "/app/integrations" },
-      { id: "support-settings", label: "Ajustes de soporte", icon: "building", href: "/app/settings/support" },
-    ],
-  },
-  {
-    section: "Venta",
-    items: [
-      { id: "products",    label: "Productos", icon: "products",  href: "/app/products"},
-      { id: "attributes",  label: "Atributos", icon: "database",  href: "/app/attributes" },
-    ],
-  },
-];
+import { navForWorkspace } from "@/components/shell/nav";
+import { WorkspaceSwitcher } from "@/components/shell/WorkspaceSwitcher";
 
 interface SidebarProps {
   onLogout?: () => void;
@@ -95,7 +20,8 @@ interface SidebarProps {
 
 export function Sidebar({ onLogout }: SidebarProps) {
   const pathname = usePathname();
-  const { sidebarCollapsed, toggleSidebar, activeBrand } = useUIStore();
+  const { sidebarCollapsed, toggleSidebar, activeBrand, activeWorkspace } = useUIStore();
+  const sections = navForWorkspace(activeWorkspace);
 
   // Módulos personalizados (custom objects) creados en Atributos → nav dinámico.
   const modules = useAttributesStore((s) => s.modules);
@@ -159,9 +85,14 @@ export function Sidebar({ onLogout }: SidebarProps) {
         </button>
       </div>
 
+      {/* Workspace switcher (CRM ↔ Pautas) */}
+      <div className="px-[12px] pb-2 flex-none">
+        <WorkspaceSwitcher collapsed={sidebarCollapsed} />
+      </div>
+
       {/* Nav items */}
       <div className="flex-1 overflow-y-auto px-[12px] pb-4" style={{ scrollbarWidth: "none" }}>
-        {NAV.map((group) => (
+        {sections.map((group) => (
           <div key={group.section} className="mb-[14px]">
             {!sidebarCollapsed && (
               <div
