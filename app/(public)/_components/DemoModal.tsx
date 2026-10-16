@@ -17,6 +17,7 @@ export function DemoModal({ open, onClose }: { open: boolean; onClose: () => voi
   return (
     <div
       className={`mkt-modal-scrim${open ? " show" : ""}`}
+      data-lenis-prevent
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}

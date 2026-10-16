@@ -195,11 +195,15 @@ export function Sidebar({ onLogout }: SidebarProps) {
                         <span className="flex-1 truncate">{item.label}</span>
                         {badge && (
                           <span
-                            className="text-[11px] font-bold rounded-full min-w-[18px] h-[18px] px-[5px] flex items-center justify-center dark:text-black"
+                            className="text-[11px] font-bold rounded-full min-w-[18px] h-[18px] px-[5px] flex items-center justify-center"
                             style={{
+                              // On the solid black/white active row the badge
+                              // inverts so it stays visible; inactive rows keep
+                              // the lime accent with dark text.
                               background: isActive
-                                ? "var(--color-primary)"
+                                ? "var(--color-on-primary)"
                                 : "var(--color-secondary)",
+                              color: isActive ? "var(--color-primary)" : "#0E1300",
                             }}
                           >
                             {badge}
