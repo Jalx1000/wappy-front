@@ -932,7 +932,6 @@ export function InboxView() {
                 className="flex-1 overflow-y-auto flex flex-col gap-2"
                 style={{
                   padding: "18px",
-                  background: "var(--color-background)",
                 }}
               >
                 {loadingThread ? (
