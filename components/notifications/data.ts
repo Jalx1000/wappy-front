@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/ui/Icon";
+import type { ApiNotification } from "@/lib/api/notifications";
 
 export type NotifType = "assigned" | "mention" | "sla" | "csat" | "campaign";
 
@@ -22,11 +23,44 @@ export const NOTIF_ICON: Record<NotifType, IconName> = {
   campaign: "megaphone",
 };
 
-export const NOTIF_SEED: NotifItem[] = [
-  { id: "n1", type: "assigned", title: "Nueva conversación asignada", body: "Amelia Wright — pago con tarjeta rechazado", time: "hace 2m", read: false, who: "AW", tint: ["var(--color-primary-subtle)", "var(--color-primary-ink)"] },
-  { id: "n2", type: "mention", title: "Ana García te mencionó", body: "«@tú ¿puedes revisar este reembolso?»", time: "hace 18m", read: false, who: "AG", tint: ["var(--color-success-bg)", "var(--color-success-dark)"] },
-  { id: "n3", type: "sla", title: "Riesgo de incumplir SLA", body: "Sofia Petrova — primera respuesta en 2 min", time: "hace 20m", read: false, who: "SP", tint: ["var(--color-warning-bg)", "var(--color-warning)"] },
-  { id: "n4", type: "csat", title: "Nueva valoración CSAT: 😍 Genial", body: "Marco Rossi valoró tu atención", time: "hace 1h", read: true, who: "MR", tint: ["var(--color-success-bg)", "var(--color-success-dark)"] },
-  { id: "n5", type: "campaign", title: "Campaña enviada", body: "«Anuncio de junio» llegó a 4.210 contactos", time: "hace 3h", read: true, who: null, icon: "megaphone" },
-  { id: "n6", type: "assigned", title: "Conversación reasignada a ti", body: "Liam O'Brien — nueva tarjeta física", time: "Ayer", read: true, who: "LO", tint: ["var(--color-primary-subtle)", "var(--color-primary-ink)"] },
+const KNOWN_TYPES: readonly string[] = [
+  "assigned",
+  "mention",
+  "sla",
+  "csat",
+  "campaign",
 ];
+
+/** Fecha relativa compacta en español (ahora / hace 2m / hace 3h / Ayer / fecha). */
+export function timeAgo(iso: string): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (secs < 60) return "ahora";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `hace ${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `hace ${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return "Ayer";
+  if (days < 7) return `hace ${days}d`;
+  return new Date(iso).toLocaleDateString();
+}
+
+/** Mapea la notificación del backend al modelo que consume la campana. */
+export function toNotifItem(n: ApiNotification): NotifItem {
+  const type: NotifType = KNOWN_TYPES.includes(n.type)
+    ? (n.type as NotifType)
+    : "mention";
+  const who =
+    typeof n.metadata?.who === "string" ? (n.metadata.who as string) : null;
+  return {
+    id: String(n.id),
+    type,
+    title: n.title,
+    body: n.body,
+    time: timeAgo(n.createdAt),
+    read: n.read,
+    who,
+  };
+}
