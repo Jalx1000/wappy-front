@@ -74,6 +74,18 @@ export function SiteFooter() {
           </div>
         </div>
 
+        <div className="foot-business">
+          <h4>{f.business.title}</h4>
+          <dl>
+            {f.business.rows.map((r) => (
+              <div className="foot-biz-row" key={r.label}>
+                <dt>{r.label}</dt>
+                <dd>{r.href ? <a href={r.href}>{r.value}</a> : r.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
         <div className="foot-word">WAPPY</div>
 
         <div className="foot-bottom">

@@ -1434,6 +1434,48 @@ html:has(.mkt) {
 .mkt .foot-legal a:hover {
   color: var(--ink);
 }
+.mkt .foot-business {
+  position: relative;
+  z-index: 2;
+  padding: 24px 0 8px;
+  border-top: 1px solid rgba(14, 19, 0, 0.12);
+}
+.mkt .foot-business h4 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(14, 19, 0, 0.45);
+  margin: 0 0 16px;
+}
+.mkt .foot-business dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px 40px;
+  margin: 0;
+}
+.mkt .foot-biz-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.mkt .foot-biz-row dt {
+  font-size: 12px;
+  color: rgba(14, 19, 0, 0.45);
+}
+.mkt .foot-biz-row dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink);
+}
+.mkt .foot-biz-row dd a {
+  color: var(--ink);
+  text-decoration: none;
+}
+.mkt .foot-biz-row dd a:hover {
+  opacity: 0.6;
+}
 
 /* legal pages */
 .mkt .legal-hero {

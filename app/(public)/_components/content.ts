@@ -125,6 +125,10 @@ export interface SiteContent {
     cols: { title: string; links: { label: string; href: string }[] }[];
     rights: string;
     legal: { label: string; href: string }[];
+    business: {
+      title: string;
+      rows: { label: string; value: string; href?: string }[];
+    };
   };
   demo: {
     eyebrow: string;
@@ -461,6 +465,21 @@ export const CONTENT: Record<Lang, SiteContent> = {
         { label: "Privacidad", href: "/privacy-policy" },
         { label: "Cookies", href: "/cookies" },
       ],
+      business: {
+        title: "Información del negocio",
+        rows: [
+          { label: "Nombre legal del negocio", value: "JAVIER ALEJANDRO MOGRO PEÑAFIEL" },
+          {
+            label: "Dirección",
+            value:
+              "Unidad Vecinal 59, Calle Bernardo Cadario, S/N, Santa Cruz de la Sierra, Santa Cruz 0000, Bolivia",
+          },
+          { label: "Teléfono del negocio", value: "+591 76616013", href: "tel:+59176616013" },
+          { label: "Sitio web", value: "https://www.wappy.dev/", href: "https://www.wappy.dev/" },
+          { label: "Identificación fiscal", value: "NIT 12387735011" },
+          { label: "Correo", value: "hola@wappy.dev", href: "mailto:hola@wappy.dev" },
+        ],
+      },
     },
     demo: {
       eyebrow: "Agendar demo",
@@ -784,6 +803,21 @@ export const CONTENT: Record<Lang, SiteContent> = {
         { label: "Privacy", href: "/privacy-policy" },
         { label: "Cookies", href: "/cookies" },
       ],
+      business: {
+        title: "Business information",
+        rows: [
+          { label: "Legal business name", value: "JAVIER ALEJANDRO MOGRO PEÑAFIEL" },
+          {
+            label: "Address",
+            value:
+              "Unidad Vecinal 59, Calle Bernardo Cadario, S/N, Santa Cruz de la Sierra, Santa Cruz 0000, Bolivia",
+          },
+          { label: "Business phone", value: "+591 76616013", href: "tel:+59176616013" },
+          { label: "Website", value: "https://www.wappy.dev/", href: "https://www.wappy.dev/" },
+          { label: "Tax ID", value: "NIT 12387735011" },
+          { label: "Email", value: "hola@wappy.dev", href: "mailto:hola@wappy.dev" },
+        ],
+      },
     },
     demo: {
       eyebrow: "Book a demo",
