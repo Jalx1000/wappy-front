@@ -4,8 +4,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Badge } from "@/components/ui/Badge";
-import { useNotificationsStore } from "@/store/notifications";
-import { NOTIF_ICON, type NotifItem } from "./data";
+import {
+  useNotifications,
+  useMarkAllNotificationsRead,
+  useMarkNotificationRead,
+} from "@/lib/hooks/notifications";
+import { NOTIF_ICON, toNotifItem, type NotifItem } from "./data";
 
 function NotifRow({ n, onOpen }: { n: NotifItem; onOpen: () => void }) {
   return (
@@ -40,14 +44,17 @@ function NotifRow({ n, onOpen }: { n: NotifItem; onOpen: () => void }) {
 
 export function NotificationBell() {
   const router = useRouter();
-  const { items, setItems } = useNotificationsStore();
+  const { data } = useNotifications();
+  const markReadMut = useMarkNotificationRead();
+  const markAllMut = useMarkAllNotificationsRead();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
+  const items: NotifItem[] = (data ?? []).map(toNotifItem);
   const unread = items.filter((n) => !n.read).length;
   const shown = filter === "unread" ? items.filter((n) => !n.read) : items;
-  const markAll = () => setItems((p) => p.map((n) => ({ ...n, read: true })));
-  const markOne = (id: string) => setItems((p) => p.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  const markAll = () => markAllMut.mutate();
+  const markOne = (id: string) => markReadMut.mutate(Number(id));
 
   return (
     <div className="relative">
