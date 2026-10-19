@@ -31,12 +31,12 @@
   /* App shell canvas — subtle "sky" wash behind the dashboard content so the
      product matches the marketing/login sky. Applied only to the shell
      container (not to --color-background, which many solid fills rely on). */
-  --app-canvas:             linear-gradient(180deg, #E6F3FD 0%, #EEF6FC 26%, #F6F6F6 60%);
+  --app-canvas:             linear-gradient(180deg, #e6f3fd 20%, #fff 60%, #fff 100%);
   --color-surface:          #FFFFFF;
   --color-surface-raised:   #FFFFFF;
   --color-surface-overlay:  #FFFFFF;
   --color-surface-dark:     #2E2E2E;
-  --color-sidebar:          #F0F0F0;
+  --color-sidebar:          #FFFFFF;
 
   /* Text */
   --color-text-primary:     #2C2C2C;

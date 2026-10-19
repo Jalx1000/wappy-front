@@ -24,12 +24,12 @@ function Row({ active, icon, dot, label, count, onClick }: {
 }) {
   return (
     <button onClick={onClick} className="flex items-center gap-2.5 w-full text-left cursor-pointer border-none"
-      style={{ padding: "7px 10px", borderRadius: 8, marginBottom: 1, background: active ? "var(--color-primary-subtle)" : "transparent", color: active ? "var(--color-primary-ink)" : "var(--color-text-secondary)" }}
+      style={{ padding: "7px 10px", borderRadius: 8, marginBottom: 1, background: active ? "var(--color-primary)" : "transparent", color: active ? "var(--color-on-primary)" : "var(--color-text-secondary)" }}
       onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = "var(--neutral-100)"; }}
       onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}>
       {dot ?? (icon && <Icon name={icon} size={16} className="flex-none" />)}
       <span className="flex-1 truncate text-[13px]" style={{ fontWeight: active ? 600 : 500 }}>{label}</span>
-      <span className="text-[12px] tnum" style={{ color: active ? "var(--color-primary-ink)" : "var(--color-text-tertiary)" }}>{count}</span>
+      <span className="text-[12px] tnum" style={{ color: active ? "var(--color-on-primary)" : "var(--color-text-tertiary)" }}>{count}</span>
     </button>
   );
 }

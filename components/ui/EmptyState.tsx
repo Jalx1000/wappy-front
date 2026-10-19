@@ -16,11 +16,11 @@ export function EmptyState({ icon = "spark", title, body, action }: EmptyStatePr
         style={{
           width: 64,
           height: 64,
-          background: "var(--color-primary-subtle)",
-          color: "var(--color-primary-ink)",
+          background: "var(--color-primary)",
+          color: "var(--color-on-primary)",
         }}
       >
-        <Icon name={icon} size={28} color="var(--color-primary-ink)" />
+        <Icon name={icon} size={28} color="var(--color-on-primary)" />
       </span>
       <div>
         <div
