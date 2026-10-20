@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChannelDot } from "@/components/ui/ChannelDot";
@@ -22,6 +22,7 @@ import { fillVars, type Macro } from "./macrosData";
 import type { ConvMeta } from "./copilotEngine";
 import { useMacrosStore } from "@/store/macros";
 import { useMe } from "@/lib/hooks";
+import { useSetConversationStatus } from "@/lib/hooks/conversationStatus";
 import { useTagsStore } from "@/store/tags";
 import { tagDot } from "@/components/tags/data";
 import { useContactTagsStore } from "@/store/contactTags";
@@ -325,7 +326,8 @@ export function InboxView() {
   const threadCardsByConvo = useThreadCardsStore((s) => s.byConvo);
   const addThreadCard = useThreadCardsStore((s) => s.addCard);
   const convoStateById = useConvoStateStore((s) => s.byId);
-  const setConvoStatus = useConvoStateStore((s) => s.setStatus);
+  const setConvoStatusLocal = useConvoStateStore((s) => s.setStatus);
+  const statusMutation = useSetConversationStatus();
   const addNote = useConvoStateStore((s) => s.addNote);
   const [composerMode, setComposerMode] = useState<"reply" | "note">("reply");
   const [sendMenuOpen, setSendMenuOpen] = useState(false);
@@ -361,6 +363,24 @@ export function InboxView() {
           conversations.find((c) => c.contact?.id === contactParam)?.id) ||
         (isMobile ? undefined : conversations[0]?.id);
   const active = conversations.find((c) => c.id === activeId);
+
+  // Optimistic local status + real backend persistence (feeds support metrics).
+  const setConvoStatus = useCallback(
+    (
+      conversationId: string,
+      status: "open" | "snoozed" | "resolved",
+      snoozedUntil?: string | null,
+    ) => {
+      setConvoStatusLocal(conversationId, status, snoozedUntil);
+      const channel = conversations.find(
+        (c) => c.id === conversationId,
+      )?.channel;
+      if (channel) {
+        statusMutation.mutate({ conversationId, channel, status });
+      }
+    },
+    [setConvoStatusLocal, statusMutation, conversations],
+  );
 
   const { data: messages = [], isLoading: loadingThread } = useQuery<
     UnifiedMessage[]
