@@ -42,8 +42,53 @@ export interface UnifiedMessage {
   sentAt: string;
 }
 
+export interface SupportMetrics {
+  range: { from: string | null; to: string | null };
+  conversations: {
+    total: number;
+    active: number;
+    byChannel: Record<string, number>;
+    assigned: number;
+    unassigned: number;
+  };
+  byStatus: Record<string, number>;
+  volumeSeries: { date: string; created: number; resolved: number }[];
+  responseTime: {
+    medianSeconds: number | null;
+    distribution: Record<string, number>;
+  };
+  csat: {
+    count: number;
+    average: number | null;
+    distribution: Record<string, number>;
+  };
+  agents: {
+    userId: number;
+    convos: number;
+    resolved: number;
+    medianResponseSeconds: number | null;
+    csatAverage: number | null;
+  }[];
+}
+
 export const socialInboxApi = {
   getAccounts: () => api.get<InboxAccount[]>("/social-inbox/accounts"),
+
+  getMetrics: (params?: { from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set("from", params.from);
+    if (params?.to) q.set("to", params.to);
+    const qs = q.toString();
+    return api.get<SupportMetrics>(
+      `/social-inbox/metrics${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  setStatus: (conversationId: string, channel: string, status: string) =>
+    api.patch<{ status: string }>(
+      `/social-inbox/conversations/${conversationId}/status`,
+      { channel, status },
+    ),
 
   getConversations: (params?: { channel?: string; connectionId?: number }) => {
     const q = new URLSearchParams();
