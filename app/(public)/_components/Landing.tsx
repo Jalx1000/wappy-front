@@ -261,7 +261,9 @@ export function Landing() {
             </a>
           </div>
           <div className="app-phones" aria-hidden="true">
-            <IosPhone m={m} app={t.app} />
+            <div className="">
+            <img src="/phones/ios-phone.png" className="border-10 h-150 rounded-[3.5rem]" alt="" />
+            </div>
             <AndroidPhone app={t.app} you={m.you} />
           </div>
         </div>
