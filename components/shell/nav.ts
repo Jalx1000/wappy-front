@@ -65,6 +65,7 @@ export const NAV: NavSection[] = [
       { id: "inbox",       label: "Bandeja Social",     icon: "inbox",    href: "/app/inbox",       ws: ["crm"] },
       { id: "team-inbox",  label: "Bandeja de equipo",  icon: "board",    href: "/app/team-inbox",  ws: ["crm"] },
       { id: "contacts",    label: "Contactos",          icon: "users",    href: "/app/contacts",    ws: ["crm"] },
+      { id: "orders",      label: "Pedidos",            icon: "board",    href: "/app/orders",      ws: ["crm"] },
       { id: "companies",   label: "Empresas",           icon: "building", href: "/app/companies",   ws: ["crm"] },
       { id: "tags",        label: "Etiquetas",          icon: "tag",      href: "/app/tags",        ws: ["crm"] },
       { id: "help-center", label: "Centro de ayuda",    icon: "book",     href: "/app/help-center", ws: ["crm"] },
