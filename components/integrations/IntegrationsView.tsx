@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { DemoBanner } from "@/components/ui/DemoBanner";
 import { useIntegrationsStore, INTEGRATIONS_SEED } from "@/store/integrations";
+import { ApiKeysPanel } from "./ApiKeysPanel";
 
 const CATS = ["Todas", ...Array.from(new Set(INTEGRATIONS_SEED.map((i) => i.cat)))];
 
@@ -43,6 +44,10 @@ export function IntegrationsView() {
 
       {/* Body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
+        {/* Real developer API panel (keys, base URLs) — above the mock catalog. */}
+        <div style={{ marginBottom: 24 }}>
+          <ApiKeysPanel />
+        </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
           {shown.map((it) => (
             <div key={it.id} style={{ background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: 16, padding: 18, display: "flex", flexDirection: "column" }}>
