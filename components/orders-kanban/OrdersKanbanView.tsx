@@ -66,6 +66,7 @@ function OrderDetailModal({
           </label>
           <select
             id="order-stage"
+            autoFocus
             value={order.status}
             disabled={moving}
             onChange={(e) => onMove(e.target.value as OrderStatus)}
