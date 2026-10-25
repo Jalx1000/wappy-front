@@ -14,6 +14,7 @@ import {
   type ContactIdentity,
   type ContactWithIdentities,
 } from "@/lib/api/contacts";
+import { ordersApi } from "@/lib/api/orders";
 import {
   ContactTagsCard,
   ContactAttributesCard,
@@ -335,6 +336,14 @@ function ContactDetail({
   };
 
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Fetch the contact's orders only when the user intends to delete, so the
+  // confirmation can warn that they'll be removed too (cascade, S5).
+  const { data: contactOrders } = useQuery({
+    queryKey: ["orders", "for-contact", contact.id],
+    queryFn: () => ordersApi.listForContact(contact.id),
+    enabled: confirmDelete,
+  });
+  const orderCount = contactOrders?.length ?? 0;
   const removeMut = useMutation({
     mutationFn: () => contactsApi.remove(contact.id),
     onSuccess: () => onDeleted(),
@@ -638,6 +647,28 @@ function ContactDetail({
                 ¿Eliminar <b>{label}</b> definitivamente? Sus conversaciones se
                 conservan.
               </span>
+              {orderCount > 0 && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2"
+                  style={{
+                    fontSize: 12.5,
+                    color: "var(--color-error)",
+                    background: "var(--color-error-bg)",
+                    border: "1px solid var(--color-error)",
+                    borderRadius: 10,
+                    padding: "8px 10px",
+                  }}
+                >
+                  <Icon name="trash" size={14} />
+                  <span>
+                    Este contacto tiene <b>{orderCount}</b>{" "}
+                    {orderCount === 1 ? "pedido" : "pedidos"}. Se{" "}
+                    {orderCount === 1 ? "eliminará" : "eliminarán"} junto con el
+                    contacto.
+                  </span>
+                </div>
+              )}
               {removeMut.isError && (
                 <span style={{ fontSize: 12, color: "var(--color-error)" }}>
                   {(removeMut.error as Error)?.message ?? "No se pudo eliminar"}

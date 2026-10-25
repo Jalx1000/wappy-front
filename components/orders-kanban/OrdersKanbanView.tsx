@@ -2,13 +2,20 @@
 
 import { useState, type CSSProperties, type DragEvent } from "react";
 import { Modal, ModalHeader } from "@/components/ui/Modal";
-import { ORDER_STAGES, type Order, type OrderStatus } from "@/lib/api/orders";
+import {
+  ORDER_STAGES,
+  type Order,
+  type OrderItem,
+  type OrderStatus,
+} from "@/lib/api/orders";
 import {
   useOrders,
   useContactNames,
   useUpdateOrder,
   useDeleteOrder,
+  useSaveOrderItems,
 } from "@/lib/hooks/orders";
+import { OrderItemsEditor } from "./OrderItemsEditor";
 
 /** Origin badge label + tone for a card (lead vs real purchase). */
 function sourceBadge(source?: string): { label: string; color: string } | null {
@@ -56,6 +63,8 @@ function OrderDetailModal({
   moving,
   onDelete,
   deleting,
+  onSaveItems,
+  savingItems,
 }: {
   order: Order;
   contactName: string;
@@ -64,9 +73,14 @@ function OrderDetailModal({
   moving: boolean;
   onDelete: () => void;
   deleting: boolean;
+  onSaveItems: (items: OrderItem[], total: number) => void;
+  savingItems: boolean;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [editingItems, setEditingItems] = useState(false);
   const badge = sourceBadge(order.source);
+  const currency = order.currency ?? "USD";
+  const hasItems = !!order.items && order.items.length > 0;
   const row = (label: string, value: React.ReactNode) => (
     <div className="flex items-start gap-3" style={{ padding: "8px 0" }}>
       <span style={{ width: 110, flex: "none", fontSize: 12.5, color: "var(--color-text-tertiary)" }}>
@@ -124,20 +138,37 @@ function OrderDetailModal({
           {row("Creado", fmtDate(order.createdAt))}
         </div>
 
-        {order.items && order.items.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <div
-              style={{
-                fontSize: 12.5,
-                fontWeight: 600,
-                color: "var(--color-text-secondary)",
-                marginBottom: 6,
-              }}
-            >
+        <div style={{ marginTop: 14 }}>
+          <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--color-text-secondary)" }}>
               Productos
-            </div>
+            </span>
+            {!editingItems && (
+              <button
+                type="button"
+                className="fobo-btn fobo-btn-ghost fobo-btn-sm"
+                style={{ marginLeft: "auto" }}
+                onClick={() => setEditingItems(true)}
+              >
+                {hasItems ? "Editar" : "Agregar producto de interés"}
+              </button>
+            )}
+          </div>
+
+          {editingItems ? (
+            <OrderItemsEditor
+              items={order.items ?? []}
+              currency={currency}
+              saving={savingItems}
+              onCancel={() => setEditingItems(false)}
+              onSave={(items, total) => {
+                onSaveItems(items, total);
+                setEditingItems(false);
+              }}
+            />
+          ) : hasItems ? (
             <div className="flex flex-col gap-1">
-              {order.items.map((it, i) => (
+              {order.items!.map((it, i) => (
                 <div
                   key={i}
                   className="flex items-center gap-2"
@@ -158,13 +189,17 @@ function OrderDetailModal({
                     className="tnum"
                     style={{ marginLeft: "auto", color: "var(--color-text-secondary)" }}
                   >
-                    {order.currency ?? "USD"} {it.lineTotal}
+                    {currency} {it.lineTotal}
                   </span>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <div style={{ fontSize: 12.5, color: "var(--color-text-tertiary)", padding: "4px 0" }}>
+              Sin productos. Agregá el producto de interés del cliente.
+            </div>
+          )}
+        </div>
 
         <div
           className="flex items-center gap-2"
@@ -211,6 +246,7 @@ export function OrdersKanbanView() {
   const { data: names = {} } = useContactNames();
   const updateOrder = useUpdateOrder();
   const deleteOrder = useDeleteOrder();
+  const saveItems = useSaveOrderItems();
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<OrderStatus | null>(null);
@@ -448,6 +484,7 @@ export function OrdersKanbanView() {
           contactName={nameOf(detail)}
           moving={updateOrder.isPending}
           deleting={deleteOrder.isPending}
+          savingItems={saveItems.isPending}
           onClose={() => setDetail(null)}
           onMove={(status) => {
             move(detail.id, status, detail.status);
@@ -456,6 +493,10 @@ export function OrdersKanbanView() {
           onDelete={() => {
             deleteOrder.mutate(detail.id);
             setDetail(null);
+          }}
+          onSaveItems={(items, total) => {
+            saveItems.mutate({ id: detail.id, items, total });
+            setDetail({ ...detail, items, total });
           }}
         />
       )}

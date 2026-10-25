@@ -1,7 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ordersApi, type Order, type OrderStatus } from "@/lib/api/orders";
+import {
+  ordersApi,
+  type Order,
+  type OrderItem,
+  type OrderStatus,
+} from "@/lib/api/orders";
 import { contactsApi } from "@/lib/api/contacts";
 
 /** All orders of the active brand (the kanban board). */
@@ -49,6 +54,26 @@ export function useUpdateOrder() {
       if (context?.previous) qc.setQueryData(["orders"], context.previous);
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}
+
+/**
+ * Save an order's line items (the manually-filled product of interest, S3)
+ * together with its recomputed total. Reconciles the board on success.
+ */
+export function useSaveOrderItems() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      items,
+      total,
+    }: {
+      id: string;
+      items: OrderItem[];
+      total: number;
+    }) => ordersApi.update(id, { items, total }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
   });
 }
 
