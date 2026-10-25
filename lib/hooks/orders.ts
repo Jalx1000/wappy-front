@@ -51,3 +51,26 @@ export function useUpdateOrder() {
     onSettled: () => qc.invalidateQueries({ queryKey: ["orders"] }),
   });
 }
+
+/**
+ * Delete a single order (one card), leaving the contact's other orders intact.
+ * Optimistic: the card disappears immediately, rolling back on error.
+ */
+export function useDeleteOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => ordersApi.remove(id),
+    onMutate: async (id) => {
+      await qc.cancelQueries({ queryKey: ["orders"] });
+      const previous = qc.getQueryData<Order[]>(["orders"]);
+      qc.setQueryData<Order[]>(["orders"], (old) =>
+        (old ?? []).filter((o) => o.id !== id),
+      );
+      return { previous };
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) qc.setQueryData(["orders"], context.previous);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+  });
+}

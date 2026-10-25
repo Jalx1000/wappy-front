@@ -13,11 +13,24 @@ export const ORDER_STAGES = [
 
 export type OrderStatus = (typeof ORDER_STAGES)[number]["status"];
 
+export interface OrderItem {
+  productName: string;
+  sku?: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
 export interface Order {
   id: string;
   brandId: number;
   contactId: string;
   status: OrderStatus;
+  /** lead | woocommerce | manual */
+  source?: string;
+  externalId?: string | null;
+  orderNumber?: string | null;
+  items?: OrderItem[] | null;
   total?: number;
   currency?: string;
   notes?: string | null;
@@ -28,8 +41,19 @@ export interface Order {
 export const ordersApi = {
   list: () => api.get<Order[]>("/orders"),
 
+  /** A single contact's orders — used to warn with the count before deleting it. */
+  listForContact: (contactId: string) =>
+    api.get<Order[]>(`/orders?contactId=${encodeURIComponent(contactId)}`),
+
   update: (
     id: string,
-    patch: { status?: OrderStatus; total?: number; notes?: string | null },
+    patch: {
+      status?: OrderStatus;
+      total?: number;
+      notes?: string | null;
+      items?: OrderItem[] | null;
+    },
   ) => api.patch<Order>(`/orders/${id}`, patch),
+
+  remove: (id: string) => api.delete<void>(`/orders/${id}`),
 };

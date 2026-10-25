@@ -3,7 +3,23 @@
 import { useState, type CSSProperties, type DragEvent } from "react";
 import { Modal, ModalHeader } from "@/components/ui/Modal";
 import { ORDER_STAGES, type Order, type OrderStatus } from "@/lib/api/orders";
-import { useOrders, useContactNames, useUpdateOrder } from "@/lib/hooks/orders";
+import {
+  useOrders,
+  useContactNames,
+  useUpdateOrder,
+  useDeleteOrder,
+} from "@/lib/hooks/orders";
+
+/** Origin badge label + tone for a card (lead vs real purchase). */
+function sourceBadge(source?: string): { label: string; color: string } | null {
+  if (source === "woocommerce")
+    return { label: "Compra", color: "var(--color-primary)" };
+  if (source === "lead")
+    return { label: "Lead", color: "var(--color-text-tertiary)" };
+  if (source === "manual")
+    return { label: "Manual", color: "var(--color-text-tertiary)" };
+  return null;
+}
 
 const column: CSSProperties = {
   flex: "0 0 280px",
@@ -38,13 +54,19 @@ function OrderDetailModal({
   onClose,
   onMove,
   moving,
+  onDelete,
+  deleting,
 }: {
   order: Order;
   contactName: string;
   onClose: () => void;
   onMove: (status: OrderStatus) => void;
   moving: boolean;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const badge = sourceBadge(order.source);
   const row = (label: string, value: React.ReactNode) => (
     <div className="flex items-start gap-3" style={{ padding: "8px 0" }}>
       <span style={{ width: 110, flex: "none", fontSize: 12.5, color: "var(--color-text-tertiary)" }}>
@@ -91,13 +113,92 @@ function OrderDetailModal({
 
         <div style={{ marginTop: 14, borderTop: "1px solid var(--color-border)" }}>
           {row("Cliente", contactName)}
+          {badge &&
+            row(
+              "Origen",
+              <span style={{ color: badge.color, fontWeight: 600 }}>{badge.label}</span>,
+            )}
+          {order.orderNumber && row("Nº pedido", order.orderNumber)}
           {row("Total", money(order.total, order.currency) ?? "Sin monto")}
           {row("Notas", order.notes || "—")}
           {row("Creado", fmtDate(order.createdAt))}
-          {row("Actualizado", fmtDate(order.updatedAt))}
-          {row(
-            "ID",
-            <code style={{ fontSize: 11.5, color: "var(--color-text-tertiary)" }}>{order.id}</code>,
+        </div>
+
+        {order.items && order.items.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div
+              style={{
+                fontSize: 12.5,
+                fontWeight: 600,
+                color: "var(--color-text-secondary)",
+                marginBottom: 6,
+              }}
+            >
+              Productos
+            </div>
+            <div className="flex flex-col gap-1">
+              {order.items.map((it, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2"
+                  style={{
+                    fontSize: 13,
+                    color: "var(--color-text-primary)",
+                    padding: "6px 0",
+                    borderBottom: "1px solid var(--color-border)",
+                  }}
+                >
+                  <span className="tnum" style={{ color: "var(--color-text-tertiary)" }}>
+                    {it.quantity}×
+                  </span>
+                  <span style={{ minWidth: 0 }} className="truncate">
+                    {it.productName}
+                  </span>
+                  <span
+                    className="tnum"
+                    style={{ marginLeft: "auto", color: "var(--color-text-secondary)" }}
+                  >
+                    {order.currency ?? "USD"} {it.lineTotal}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div
+          className="flex items-center gap-2"
+          style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--color-border)" }}
+        >
+          {confirmDelete ? (
+            <>
+              <span style={{ fontSize: 12.5, color: "var(--color-text-secondary)" }}>
+                ¿Eliminar este pedido?
+              </span>
+              <button
+                className="fobo-btn fobo-btn-danger fobo-btn-sm"
+                style={{ marginLeft: "auto" }}
+                disabled={deleting}
+                onClick={onDelete}
+              >
+                {deleting ? "Eliminando…" : "Sí, eliminar"}
+              </button>
+              <button
+                className="fobo-btn fobo-btn-secondary fobo-btn-sm"
+                disabled={deleting}
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </button>
+            </>
+          ) : (
+            <button
+              className="fobo-btn fobo-btn-ghost fobo-btn-sm"
+              style={{ marginLeft: "auto", color: "var(--color-error)" }}
+              onClick={() => setConfirmDelete(true)}
+            >
+              Eliminar pedido
+            </button>
           )}
         </div>
       </div>
@@ -109,6 +210,7 @@ export function OrdersKanbanView() {
   const { data: orders, isLoading, isError, refetch } = useOrders();
   const { data: names = {} } = useContactNames();
   const updateOrder = useUpdateOrder();
+  const deleteOrder = useDeleteOrder();
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState<OrderStatus | null>(null);
@@ -285,8 +387,35 @@ export function OrdersKanbanView() {
                         opacity: draggingId === order.id ? 0.5 : 1,
                       }}
                     >
-                      <div style={{ fontSize: 13.5, fontWeight: 600, color: "var(--color-text-primary)" }}>
-                        {nameOf(order)}
+                      <div className="flex items-center gap-2">
+                        <div
+                          style={{
+                            fontSize: 13.5,
+                            fontWeight: 600,
+                            color: "var(--color-text-primary)",
+                            minWidth: 0,
+                          }}
+                          className="truncate"
+                        >
+                          {nameOf(order)}
+                        </div>
+                        {sourceBadge(order.source) && (
+                          <span
+                            style={{
+                              marginLeft: "auto",
+                              flex: "none",
+                              fontSize: 10.5,
+                              fontWeight: 600,
+                              color: sourceBadge(order.source)!.color,
+                              border: `1px solid ${sourceBadge(order.source)!.color}`,
+                              borderRadius: 9999,
+                              padding: "0 6px",
+                              lineHeight: "16px",
+                            }}
+                          >
+                            {sourceBadge(order.source)!.label}
+                          </span>
+                        )}
                       </div>
                       {money(order.total, order.currency) && (
                         <div
@@ -318,10 +447,15 @@ export function OrdersKanbanView() {
           order={detail}
           contactName={nameOf(detail)}
           moving={updateOrder.isPending}
+          deleting={deleteOrder.isPending}
           onClose={() => setDetail(null)}
           onMove={(status) => {
             move(detail.id, status, detail.status);
             setDetail({ ...detail, status });
+          }}
+          onDelete={() => {
+            deleteOrder.mutate(detail.id);
+            setDetail(null);
           }}
         />
       )}
