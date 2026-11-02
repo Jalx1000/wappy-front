@@ -200,6 +200,15 @@ export function ProductForm({ product, onClose, onDelete }: ProductFormProps) {
     }
   };
 
+  // Options for the category select: the brand's taxonomy (from the backend),
+  // plus the product's current category if it is not registered yet — so editing
+  // a Woo-synced product never silently drops its category.
+  const categoryNames = (categories ?? []).map((c) => c.name);
+  const categoryOptions =
+    category && !categoryNames.includes(category)
+      ? [category, ...categoryNames]
+      : categoryNames;
+
   return (
     <AnimatePresence>
       <div
@@ -355,19 +364,19 @@ export function ProductForm({ product, onClose, onDelete }: ProductFormProps) {
               >
                 Category *
               </label>
-              <input
+              <select
                 id="product-category"
                 className="fobo-input"
-                list="product-category-options"
-                placeholder="Elegí una o escribí una nueva"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-              />
-              <datalist id="product-category-options">
-                {(categories ?? []).map((c) => (
-                  <option key={c.id} value={c.name} />
+              >
+                <option value="">Seleccioná una categoría…</option>
+                {categoryOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </div>
 
             <div>
