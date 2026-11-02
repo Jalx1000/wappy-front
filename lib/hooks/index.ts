@@ -1447,6 +1447,16 @@ export function useProducts(brandId: string | undefined, options?: { page?: numb
   });
 }
 
+/** Brand's product categories (flat taxonomy), for the product form combobox
+ *  and the catalog filter. Backend: GET /categories (brand-scoped). */
+export function useCategories(brandId: string | undefined) {
+  return useQuery<{ id: string; name: string }[], Error>({
+    queryKey: ["categories", brandId],
+    queryFn: () => api.get<{ id: string; name: string }[]>(`/categories`),
+    enabled: !!brandId,
+  });
+}
+
 export function useCreateProduct(brandId: string | undefined) {
   const qc = useQueryClient();
   return useMutation<Product, Error, CreateProductInput>({

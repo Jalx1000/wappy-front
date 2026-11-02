@@ -4,15 +4,13 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/Icon";
 import { useToast } from "@/components/ui/Toast";
-import { useCreateProduct, useUpdateProduct } from "@/lib/hooks";
+import { useCreateProduct, useUpdateProduct, useCategories } from "@/lib/hooks";
 import { useUIStore } from "@/store/ui";
 import { BRANDS as BRANDS_FALLBACK } from "@/lib/mocks/data";
 import type { Product } from "@/lib/mocks/analyticsData";
 import { useProductCustomFields } from "@/lib/productFields";
 import { useProductAttributesStore } from "@/store/product-attributes";
 import type { AttrValue, FieldDef } from "@/components/attributes/data";
-
-const CATEGORIES = ["Electronics", "Apparel", "Services", "Subscriptions"];
 
 /** Input para un campo personalizado según su tipo (ligero — el editor completo
  *  del esquema vive en Atributos). */
@@ -94,6 +92,7 @@ export function ProductForm({ product, onClose, onDelete }: ProductFormProps) {
   const brandId = activeBrand?.id ?? BRANDS_FALLBACK[0].id;
   const create = useCreateProduct(brandId);
   const update = useUpdateProduct(brandId);
+  const { data: categories } = useCategories(activeBrand?.id);
   const toast = useToast();
 
   // `product` carries a legacy mock shape; read its fields through a lax local
@@ -350,23 +349,25 @@ export function ProductForm({ product, onClose, onDelete }: ProductFormProps) {
 
             <div>
               <label
+                htmlFor="product-category"
                 className="text-[12px] font-semibold block mb-2"
                 style={{ color: "var(--color-text-secondary)" }}
               >
                 Category *
               </label>
-              <select
+              <input
+                id="product-category"
                 className="fobo-input"
+                list="product-category-options"
+                placeholder="Elegí una o escribí una nueva"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-              >
-                <option value="">Select…</option>
-                {CATEGORIES.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
+              />
+              <datalist id="product-category-options">
+                {(categories ?? []).map((c) => (
+                  <option key={c.id} value={c.name} />
                 ))}
-              </select>
+              </datalist>
             </div>
 
             <div>
